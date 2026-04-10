@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +24,32 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# === MSA CAJEME SPECIFIC ===
+
+# Private Keys (NEVER commit these)
+*.key
+*.key.pub
+src-tauri/msa-*.key*
+
+# Tauri build artifacts & sidecar binaries
+src-tauri/bin/
+src-tauri/target/
+src-tauri/build_errors.txt
+src-tauri/icon_square.png
+
+# Server artifacts
+server/dist/
+server/node_modules/
+server/logs/
+server/backups/
+server/.env
+
+# Build / debug temp files
+build_errors.txt
+last_build.log
+tsc_errors.txt
+db_schema.json
+db_schema_actual.json
+oldApp.txt
+make_square_icon.ps1

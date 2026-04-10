@@ -1,7 +1,7 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { formatCurrency } from '../utils/format';
-import type { Ticket } from '../context/TicketContext';
-import type { Expense } from '../context/ExpenseContext';
+import type { Ticket, Sale } from '../types';
+// import type { Expense } from '../context/ExpenseContext'; // Removed unused
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#1e293b' },
@@ -24,11 +24,15 @@ const styles = StyleSheet.create({
 interface FinancesPDFProps {
   monthYear: string;
   tickets: Ticket[];
-  expenses: Expense[];
+  expenses: any[];
+  sales: Sale[];
 }
 
-export const FinancesPDF = ({ monthYear, tickets, expenses }: FinancesPDFProps) => {
-  const extraIncome = expenses.filter(e => e.type === 'income').reduce((acc, e) => acc + e.amount, 0);
+export const FinancesPDF = ({ monthYear, tickets, expenses, sales }: FinancesPDFProps) => {
+  const extraIncomeByExpenses = expenses.filter(e => e.type === 'income').reduce((acc, e) => acc + e.amount, 0);
+  const extraIncomeBySales = sales.reduce((acc, s) => acc + (s.total || 0), 0);
+  const extraIncome = extraIncomeByExpenses + extraIncomeBySales;
+  
   const totalIncome = tickets.reduce((acc, t) => acc + t.total, 0) + extraIncome;
   const totalExpenses = expenses.filter(e => !e.type || e.type === 'expense').reduce((acc, e) => acc + e.amount, 0);
   const netIncome = totalIncome - totalExpenses;
@@ -68,13 +72,40 @@ export const FinancesPDF = ({ monthYear, tickets, expenses }: FinancesPDFProps) 
             </View>
             {tickets.map(t => (
               <View style={styles.tRow} key={t.id}>
-                <Text style={styles.col1}>{t.clientName}</Text>
+                <View style={styles.col1}>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>{t.client_name || t.clientName || 'Sin Nombre'}</Text>
+                  <Text style={{ fontSize: 8, color: '#64748b', marginTop: 2 }}>
+                    {t.items?.map((i: any) => `${i.quantity}x ${i.name}`).join(', ') || 'Sin detalles'}
+                  </Text>
+                </View>
                 <Text style={styles.col2}>{new Date(t.date).toLocaleDateString()}</Text>
                 <Text style={styles.col3}>{formatCurrency(t.total)}</Text>
               </View>
             ))}
             {tickets.length === 0 && (
-              <Text style={{ padding: 10, textAlign: 'center', color: '#94a3b8' }}>No hay ventas registradas en este mes.</Text>
+              <Text style={{ padding: 10, textAlign: 'center', color: '#94a3b8' }}>No hay servicios registrados en este mes.</Text>
+            )}
+          </View>
+        </View>
+
+        {/* Ventas Directas */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Desglose de Ventas Directas (POS)</Text>
+          <View style={styles.table}>
+            <View style={styles.tHead}>
+              <Text style={styles.col1}>Cliente / Referencia</Text>
+              <Text style={styles.col2}>Fecha</Text>
+              <Text style={styles.col3}>Monto</Text>
+            </View>
+            {sales.map(s => (
+              <View style={styles.tRow} key={s.id}>
+                <Text style={styles.col1}>{s.clientName || s.client_name || 'Venta de Mostrador'}</Text>
+                <Text style={styles.col2}>{new Date(s.date).toLocaleDateString()}</Text>
+                <Text style={styles.col3}>{formatCurrency(s.total)}</Text>
+              </View>
+            ))}
+            {sales.length === 0 && (
+              <Text style={{ padding: 10, textAlign: 'center', color: '#94a3b8' }}>No hay ventas directas registradas.</Text>
             )}
           </View>
         </View>

@@ -44,7 +44,7 @@ export const SalesProvider = ({ children }: { children: ReactNode }) => {
       date: new Date().toISOString(),
     };
     setSales([newSale, ...sales]);
-  };
+  };  
 
   return (
     <SalesContext.Provider value={{ sales, addSale }}>

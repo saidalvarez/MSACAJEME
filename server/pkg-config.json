@@ -1,0 +1,15 @@
+{
+  "name": "msa-server",
+  "bin": "dist/servidor.js",
+  "pkg": {
+    "assets": [
+      "dist/**/*",
+      "node_modules/sequelize/**/*",
+      "node_modules/pg/**/*"
+    ],
+    "targets": [
+      "node18-win-x64"
+    ],
+    "outputPath": "bin"
+  }
+}

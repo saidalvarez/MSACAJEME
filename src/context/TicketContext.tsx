@@ -13,6 +13,7 @@ export interface TicketItem {
 export interface Ticket {
   id: string;
   ticketNumber: number;
+  ticket_number?: number;
   date: string;
   clientName: string;
   clientPhone?: string; 
@@ -20,7 +21,7 @@ export interface Ticket {
   vehicle?: string;
   total: number;
   items: TicketItem[];
-  status: 'pending' | 'completed';
+  status: 'pending' | 'completed' | 'cancelled';
   formatType?: 'basic' | 'payment_info' | 'payment_no_retention';
   notes?: string;
   discount?: number; // Percentaje
@@ -31,7 +32,7 @@ interface TicketContextType {
   tickets: Ticket[];
   // Modificamos addTicket para que devuelva el Ticket creado
   addTicket: (ticket: Omit<Ticket, 'id' | 'ticketNumber' | 'date'>) => Ticket; 
-  updateTicketStatus: (id: string, status: 'pending' | 'completed') => void;
+  updateTicketStatus: (id: string, status: 'pending' | 'completed' | 'cancelled') => void;
   editTicket: (id: string, updatedData: Partial<Ticket>) => void;
   deleteTicket: (id: string) => void;
   clearTickets: () => void;
@@ -74,7 +75,7 @@ export const TicketProvider = ({ children }: { children: ReactNode }) => {
     return newTicket;
   };
 
-  const updateTicketStatus = (id: string, status: 'pending' | 'completed') => {
+  const updateTicketStatus = (id: string, status: 'pending' | 'completed' | 'cancelled') => {
     setTickets(tickets.map(t => t.id === id ? { ...t, status } : t));
   };
 

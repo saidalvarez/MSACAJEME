@@ -1,5 +1,5 @@
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import type { Ticket } from '../context/TicketContext';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import type { Ticket } from '../types';
 
 // Tipos de formato
 export type QuoteFormatType = 'basic' | 'payment_info' | 'payment_no_retention';
@@ -32,8 +32,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 5,
   },
-  logoBox: { width: 260, height: 75 },
-  logoImg: { width: '100%', height: '100%', objectFit: 'contain' },
+  logoBox: { width: 260, height: 75, justifyContent: 'center' },
+  businessName: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#1e3a8a', lineHeight: 1.2 },
+  businessSub: { fontSize: 9, color: '#475569', marginTop: 2, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 1 },
   headerRight: { 
     alignItems: 'flex-end',
     width: 200,
@@ -57,11 +58,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingTop: 3,
     marginBottom: 8,
-    color: '#000',
+    color: '#000000',
   },
   borderTop: {
     borderTopWidth: 1,
-    borderTopColor: '#000',
+    borderTopColor: '#000000',
     borderTopStyle: 'solid',
   },
   // -- Info Cliente y Contacto/Pago --
@@ -104,12 +105,12 @@ const styles = StyleSheet.create({
   infoValue: {
     flex: 1,
     fontSize: 10,
-    color: '#000',
+    color: '#000000',
   },
   paymentText: {
     marginBottom: 3,
     fontSize: 10,
-    color: '#000',
+    color: '#000000',
   },
   paymentLink: {
     color: '#2563eb', // Blueish aesthetic link
@@ -131,7 +132,7 @@ const styles = StyleSheet.create({
   tHead: { 
     flexDirection: 'row', 
     backgroundColor: redColor, // Reducido saturacion
-    color: '#fff',
+    color: '#ffffff',
     fontFamily: 'Helvetica-Bold',
     fontSize: 11,
   },
@@ -192,7 +193,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: 10,
     fontFamily: 'Helvetica-Bold',
-    color: '#000',
+    color: '#000000',
     width: 80,
     paddingVertical: 4,
     paddingRight: 6,
@@ -265,9 +266,26 @@ const styles = StyleSheet.create({
   }
 });
 
-const formatNum = (num: number) => {
-  return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatNum = (num: string | number) => {
+  const n = Number(num || 0);
+  return isNaN(n) ? '0.00' : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
+const parseNumber = (val: string | number | undefined | null): number => {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val;
+  if (!val) return 0;
+  const cleaned = String(val).replace(/[^0-9.-]+/g, "");
+  const n = Number(cleaned);
+  return isNaN(n) ? 0 : n;
+};
+
+export interface QuotePDFItem {
+  id?: string | number;
+  name?: string;
+  price?: string | number;
+  quantity?: string | number;
+  inventory_id?: string;
+}
 
 interface QuotePDFProps {
   quote: Ticket;
@@ -275,10 +293,11 @@ interface QuotePDFProps {
 }
 
 export const QuotePDF = ({ quote, formatType }: QuotePDFProps) => {
-  const subtotal = quote.items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const discountAmount = subtotal * ((quote.discount || 0) / 100);
+  const safeItems = quote?.items || [];
+  const subtotal = safeItems.reduce((acc, item) => acc + (parseNumber(item.price) * parseNumber(item.quantity || 1)), 0);
+  const discountAmount = subtotal * (parseNumber(quote?.discount) / 100);
   const baseTotal = subtotal - discountAmount;
-  
+
   const envio = 0; // Se deja en ceros fijos por ahora a falta de input de envio
   const baseGravable = baseTotal + envio;
 
@@ -290,30 +309,43 @@ export const QuotePDF = ({ quote, formatType }: QuotePDFProps) => {
 
   const grandTotal = baseGravable + iva - retencion;
 
-  // Llenar filas vacías para emparejar el diseño de excel - SIEMPRE mínimo 12 filas para 1 hoja
-  const emptyRowsCount = Math.max(0, 12 - quote.items.length);
+  // Llenar filas vacías para emparejar el diseño de excel - Reducido a 8 para evitar saltos de página innecesarios
+  const emptyRowsCount = Math.max(0, 8 - safeItems.length);
   const emptyRows = Array.from({ length: emptyRowsCount }).map((_, i) => i);
+
+  // Safe extract logic for snake_case/camelCase dual support
+  const q: Record<string, unknown> = (quote as unknown) as Record<string, unknown> || {};
+  const ticketNum = Number(q.ticket_number || q.ticketNumber || 0);
+  const clientNameStr = String(q.client_name || q.clientName || 'Cliente');
+  const clientPhoneStr = String(q.client_phone || q.clientPhone || 'No proporcionado');
+  const clientEmailStr = String(q.client_email || q.clientEmail || 'No proporcionado');
+  const vehicleStr = String(q.vehicle || 'No especificado');
+  const dateStr = q.date ? new Date(q.date as string).toLocaleDateString() : new Date().toLocaleDateString();
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         
+        {/* WATERMARK QUITADA A PETICIÓN */}
+
         {/* FRANJA ROJA SUPERIOR ESTILO DISEÑO */}
         <View style={styles.topRedBanner} />
 
         {/* ENCABEZADO */}
         <View style={styles.headerRow}>
           <View style={styles.logoBox}>
-            <Image src="/logo.png" style={styles.logoImg} />
+            <Text style={styles.businessName}>MULTISERVICIOS</Text>
+            <Text style={styles.businessName}>AUTOMOTRIZ CAJEME</Text>
+            <Text style={styles.businessSub}>Mecánica General • Diagnóstico</Text>
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.mainTitle}>COTIZACIÓN</Text>
             
             <Text style={styles.infoHLabel}>Fecha</Text>
-            <Text style={[styles.infoHValue, styles.borderTop]}>{new Date(quote.date).toLocaleDateString()}</Text>
+            <Text style={[styles.infoHValue, styles.borderTop]}>{String(dateStr)}</Text>
             
-            <Text style={styles.infoHLabel}>Nº de COTIZACIÓN</Text>
-            <Text style={[styles.infoHValue, styles.borderTop]}>{quote.ticketNumber.toString().padStart(6, '0')}</Text>
+            <Text style={styles.infoHLabel}>Folio Nº</Text>
+            <Text style={[styles.infoHValue, styles.borderTop]}>{String(ticketNum).padStart(6, '0')}</Text>
           </View>
         </View>
 
@@ -323,20 +355,20 @@ export const QuotePDF = ({ quote, formatType }: QuotePDFProps) => {
           {/* Columna Cliente */}
           <View style={styles.infoColumn}>
              <View style={styles.infoTitle}>
-                <Text>Vehículo  </Text>
-                <Text style={styles.clientNameValue}><Text style={{ color: '#000' }}>{quote.vehicle || 'No especificado'}</Text></Text>
+                <Text>Vehículo</Text>
+                <Text style={styles.clientNameValue}>{vehicleStr}</Text>
              </View>
              <View style={styles.infoRow}>
                <Text style={styles.infoLabel}>Nombre:</Text>
-               <Text style={styles.infoValue}>{quote.clientName}</Text>
+               <Text style={styles.infoValue}>{clientNameStr}</Text>
              </View>
              <View style={styles.infoRow}>
                <Text style={styles.infoLabel}>Teléfono:</Text>
-               <Text style={styles.infoValue}>{quote.clientPhone || 'No proporcionado'}</Text>
+               <Text style={styles.infoValue}>{clientPhoneStr}</Text>
              </View>
              <View style={styles.infoRow}>
                <Text style={styles.infoLabel}>Email:</Text>
-               <Text style={styles.infoValue}>{quote.clientEmail || 'No proporcionado'}</Text>
+               <Text style={styles.infoValue}>{clientEmailStr}</Text>
              </View>
           </View>
 
@@ -372,7 +404,7 @@ export const QuotePDF = ({ quote, formatType }: QuotePDFProps) => {
           
         </View>
 
-        {/* TABLA PRINCIPAL */}
+           {/* TABLA PRINCIPAL */}
         <View style={styles.table}>
            <View style={styles.tHead}>
              <Text style={styles.thCol1}>CANT.</Text>
@@ -381,25 +413,45 @@ export const QuotePDF = ({ quote, formatType }: QuotePDFProps) => {
              <Text style={styles.thCol4}>TOTAL</Text>
            </View>
 
-           {/* Items Reales */}
-           {quote.items.map((item, i) => (
-             <View key={item.id} style={[styles.tRow, i % 2 === 0 ? styles.tRowEven : styles.tRowOdd]}>
-               <Text style={styles.tdCol1}>{item.quantity}</Text>
-               <Text style={[styles.tdCol2, {textTransform: 'uppercase'}]}>{item.name}</Text>
-               <Text style={styles.tdCol3}>{formatNum(item.price)}</Text>
-               <Text style={styles.tdCol4}>{formatNum(item.price * item.quantity)}</Text>
+           {/* Mano de Obra / ServiciosPrincipales */}
+           {safeItems.filter((i: any) => !i.inventory_id).length > 0 && (
+             <View style={[styles.tRow, {backgroundColor: '#e2e8f0'}]}>
+                 <Text style={[styles.tdCol2, {width: '100%', fontFamily: 'Helvetica-Bold', color: '#334155', textAlign: 'left', paddingVertical: 2, fontSize: 9, paddingLeft: 8}]}>MANO DE OBRA Y SERVICIOS</Text>
+             </View>
+           )}
+           {safeItems.filter((i: any) => !i.inventory_id).map((item: any, i: number) => (
+             <View key={`svc-${item.id || i}`} style={[styles.tRow, i % 2 === 0 ? styles.tRowEven : styles.tRowOdd]}>
+               <Text style={styles.tdCol1}>{String(item.quantity || 1)}</Text>
+               <Text style={[styles.tdCol2, {textTransform: 'uppercase'}]}>{String(item.name || 'Servicio sin nombre')}</Text>
+               <Text style={styles.tdCol3}>{formatNum(parseNumber(item.price))}</Text>
+               <Text style={styles.tdCol4}>{formatNum(parseNumber(item.price) * parseNumber(item.quantity || 1))}</Text>
+             </View>
+           ))}
+
+           {/* Refacciones e Insumos */}
+           {safeItems.filter((i: any) => i.inventory_id).length > 0 && (
+             <View style={[styles.tRow, {backgroundColor: '#e2e8f0', borderTopWidth: 2, borderTopColor: '#cbd5e1'}]}>
+                 <Text style={[styles.tdCol2, {width: '100%', fontFamily: 'Helvetica-Bold', color: '#334155', textAlign: 'left', paddingVertical: 2, fontSize: 9, paddingLeft: 8}]}>REFACCIONES E INSUMOS</Text>
+             </View>
+           )}
+           {safeItems.filter((i: any) => i.inventory_id).map((item: any, i: number) => (
+             <View key={`part-${item.id || i}`} style={[styles.tRow, i % 2 === 0 ? styles.tRowEven : styles.tRowOdd]}>
+               <Text style={styles.tdCol1}>{String(item.quantity || 1)}</Text>
+               <Text style={[styles.tdCol2, {textTransform: 'uppercase'}]}>{String(item.name || 'Servicio sin nombre')}</Text>
+               <Text style={styles.tdCol3}>{formatNum(parseNumber(item.price))}</Text>
+               <Text style={styles.tdCol4}>{formatNum(parseNumber(item.price) * parseNumber(item.quantity || 1))}</Text>
              </View>
            ))}
 
            {/* Celdas Vacías de Relleno */}
            {emptyRows.map((_, i) => {
-             const actualIndex = quote.items.length + i;
+             const actualIndex = safeItems.length + (safeItems.filter((k: any) => !k.inventory_id).length > 0 ? 1 : 0) + (safeItems.filter((k: any) => k.inventory_id).length > 0 ? 1 : 0) + i;
              return (
               <View key={`empty-${i}`} style={[styles.tRow, actualIndex % 2 === 0 ? styles.tRowEven : styles.tRowOdd]}>
                 <Text style={styles.tdCol1}> </Text>
                 <Text style={styles.tdCol2}> </Text>
                 <Text style={styles.tdCol3}> </Text>
-                <Text style={styles.tdCol4}>0.00</Text>
+                <Text style={styles.tdCol4}> </Text>
               </View>
              )
            })}
@@ -417,10 +469,11 @@ export const QuotePDF = ({ quote, formatType }: QuotePDFProps) => {
                   <Text style={{fontSize: 9.5, marginBottom: 2, fontWeight: 700}}>Tel: 6441452026</Text>
                   <Text style={[styles.paymentLink, {fontSize: 9.5, marginBottom: 15}]}>E-mail: msacajeme@gmail.com</Text>
                   
-
-                  <View style={styles.signArea}>
-                     <Text style={styles.signTitle}>FIRMA</Text>
-                     <Text style={styles.signLine}>Eleazar Armenta Tabardillo</Text>
+                   <View style={{flexDirection: 'row', alignItems: 'flex-start', marginTop: 10}}>
+                     <View style={styles.signArea}>
+                        <Text style={styles.signTitle}>FIRMA</Text>
+                        <Text style={styles.signLine}>Eleazar Armenta Tabardillo</Text>
+                     </View>
                   </View>
                  </>
                ) : (
