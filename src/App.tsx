@@ -33,6 +33,42 @@ function App() {
       initWebSockets();
       
       const interval = setInterval(syncOfflineData, 30000); // Try sync every 30s
+
+      // Silent OTA update check on startup (only in Tauri desktop)
+      const isTauri = !!(window as any).__TAURI_INTERNALS__;
+      if (isTauri) {
+        const checkForUpdates = async () => {
+          try {
+            const { check } = await import('@tauri-apps/plugin-updater');
+            const { relaunch } = await import('@tauri-apps/plugin-process');
+            const update = await check();
+            if (update) {
+              const { default: toast } = await import('react-hot-toast');
+              toast((t) => {
+                const el = document.createElement('span');
+                el.innerHTML = `<b>v${update.version} disponible</b> — `;
+                const btn = document.createElement('button');
+                btn.textContent = 'Instalar ahora';
+                btn.style.cssText = 'background:#7c3aed;color:white;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:11px;margin-left:8px';
+                btn.onclick = async () => {
+                  toast.dismiss(t.id);
+                  toast.loading('Descargando actualización...', { id: 'ota' });
+                  await update.downloadAndInstall();
+                  toast.success('Actualización instalada. Reiniciando...', { id: 'ota' });
+                  await relaunch();
+                };
+                el.appendChild(btn);
+                return el as any;
+              }, { duration: 15000, icon: '🚀' });
+            }
+          } catch (e) {
+            console.log('[OTA] Update check skipped:', e);
+          }
+        };
+        // Delay 5s to not block the initial load
+        setTimeout(checkForUpdates, 5000);
+      }
+
       return () => clearInterval(interval);
     }
   }, [isAuthenticated, loadAllData, syncOfflineData, initWebSockets]);

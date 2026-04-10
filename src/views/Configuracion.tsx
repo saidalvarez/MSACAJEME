@@ -88,7 +88,7 @@ export const Configuracion = () => {
       }
     } catch (e: any) {
       console.error(e);
-      toast.error('Error al contactar al servidor de actualización. Verifica tu enlace de GitHub Gist.', { id: 'updater', duration: 5000 });
+      toast.error('Error al contactar al servidor de actualización. Verifica tu conexión a internet.', { id: 'updater', duration: 5000 });
       setUpdateStatus('Error de conexión');
     } finally {
       setIsUpdating(false);
