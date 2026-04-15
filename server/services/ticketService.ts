@@ -2,36 +2,13 @@ import { Ticket, ItemTicket, AuditLog, Inventory, Sale, Expense } from '../model
 import sequelize from '../base_de_datos';
 import { Op, Transaction } from 'sequelize';
 import logger from '../utils/logger';
-import sharp from 'sharp';
-
 export class TicketService {
   /**
-   * Helper: Comprime una imagen en Base64 para optimizar almacenamiento.
-   * Redimensiona a un máximo de 1024px y reduce calidad JPEG.
+   * Helper: La compresión con C++ (Sharp) se deshabilitó temporalmente
+   * para asegurar la compilación limpia del sidecar en environments enjaulados (pkg).
    */
   private static async compressImage(base64Data: string): Promise<string> {
-    if (!base64Data || !base64Data.startsWith('data:image')) return base64Data;
-    
-    try {
-      const parts = base64Data.split(';base64,');
-      if (parts.length !== 2) return base64Data;
-      
-      const mimeType = parts[0].split(':')[1];
-      const buffer = Buffer.from(parts[1], 'base64');
-      
-      // Si el buffer ya es pequeño (< 100KB), no comprimimos más
-      if (buffer.length < 100 * 1024) return base64Data;
-
-      const compressedBuffer = await sharp(buffer)
-        .resize(1024, 1024, { fit: 'inside', withoutEnlargement: true })
-        .jpeg({ quality: 70, mozjpeg: true })
-        .toBuffer();
-
-      return `data:image/jpeg;base64,${compressedBuffer.toString('base64')}`;
-    } catch (error: any) {
-      logger.error('[COMPRESSION] Error al procesar imagen:', error.message);
-      return base64Data; // Fallback a la original si falla
-    }
+    return base64Data;
   }
 
   /**
