@@ -91,22 +91,31 @@ export const createCoreSlice: AppStateCreator<import('../storeTypes').CoreSlice>
 
      for (const ticket of pendingTickets) {
        try {
-         // ROBUST MAPPING: Ensure data meets backend requirements (avoid 400 Bad Request)
+         // ── ROBUST MAPPING & SANITIZATION ──
+         let cleanEmail = String(ticket.client_email || ticket.clientEmail || '').trim();
+         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+         if (cleanEmail && !emailRegex.test(cleanEmail)) cleanEmail = '';
+
+         const validFormats = ['payment_info', 'invoice', 'estimate'];
+         let cleanFormat = ticket.format_type || ticket.formatType || 'payment_info';
+         if (!validFormats.includes(cleanFormat)) cleanFormat = 'payment_info';
+
          const ticketToSync = {
            ...ticket,
-           client_name: ticket.client_name || ticket.clientName || 'Sin Nombre (Offline)',
-           client_phone: String(ticket.client_phone || ticket.clientPhone || ''),
-           client_email: String(ticket.client_email || ticket.clientEmail || ''),
+           client_name: (ticket.client_name || ticket.clientName || 'Sin Nombre').slice(0, 100).trim(),
+           client_phone: String(ticket.client_phone || ticket.clientPhone || '').slice(0, 20),
+           client_email: cleanEmail,
            date: ticket.date || (ticket as any).Date || nowArizona,
-           format_type: ticket.format_type || ticket.formatType || 'payment_info',
+           format_type: cleanFormat,
+           discount: Number(ticket.discount || 0),
            items: Array.isArray(ticket.items) ? ticket.items.map((item: any) => {
              if (!item) return null;
              const { id, ...rest } = item;
              return {
                ...rest,
-               name: item.name || item.brand || item.description || item.label || 'Producto/Servicio',
-               price: Number(item.price || 0),
-               quantity: Number(item.quantity || 1)
+               name: (item.name || item.brand || 'Producto/Servicio').trim(),
+               price: Math.max(0, Number(item.price || 0)),
+               quantity: Math.max(1, Number(item.quantity || 1))
              };
            }).filter(Boolean) : []
          };
