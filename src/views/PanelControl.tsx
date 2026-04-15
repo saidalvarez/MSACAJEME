@@ -212,8 +212,11 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                             </span>
 
                             {ticket._isOffline && (
-                                <span className="bg-orange-500 text-white text-[9px] uppercase font-bold px-2 py-1 rounded shadow-sm flex items-center gap-1.5 leading-none animate-pulse">
-                                    <Clock size={10} /> SINCRONIZANDO
+                                <span 
+                                  title={ticket.lastError || 'Sincronizando con el servidor...'}
+                                  className="bg-orange-500 text-white text-[9px] uppercase font-bold px-2 py-1 rounded shadow-sm flex items-center gap-1.5 leading-none animate-pulse cursor-help"
+                                >
+                                    <Clock size={10} /> {ticket.lastError ? 'REINTENTANDO' : 'SINCRONIZANDO'}
                                 </span>
                             )}
 
@@ -419,8 +422,6 @@ export const PanelControl = () => {
       const start = getStartOfDay(selectedDate);
       const end = getEndOfDay(selectedDate);
       
-      const isActuallyArchived = t.is_archived || t.isArchived || t.status === 'archived';
-      
       // tickets y ventas siempre entran por fecha, excepto si es un ticket pendiente de hoy.
       // Pero como estamos sumando el "Income", TODO ingreso debe ser estrictamente del día validado:
       const isWithinSelectedDay = (tDate >= start && tDate <= end);
@@ -443,7 +444,6 @@ export const PanelControl = () => {
         const expDate = new Date(exp.date);
         const start = getStartOfDay(selectedDate);
         const end = getEndOfDay(selectedDate);
-        const isActuallyArchived = exp.is_archived || exp.isArchived; 
         // Los gastos siempre deben pertenecer estrictamente al día seleccionado
         const isWithinSelectedDay = (expDate >= start && expDate <= end);
         return exp.type === 'expense' && isWithinSelectedDay;
