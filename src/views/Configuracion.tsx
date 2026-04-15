@@ -88,7 +88,7 @@ export const Configuracion = () => {
         }, 2500);
       } else {
         toast.success('Ya tienes la versión más reciente.', { id: 'updater' });
-        setUpdateStatus('Sistema Actualizado (v1.2.1)');
+        setUpdateStatus('Sistema Actualizado (v1.2.3)');
       }
     } catch (e: any) {
       console.error('Updater error:', e);
@@ -97,7 +97,7 @@ export const Configuracion = () => {
       // Distinguish between "no release exists" and actual network failures
       if (errorMsg.includes('404') || errorMsg.includes('Not Found') || errorMsg.includes('latest.json')) {
         toast.success('No hay actualizaciones publicadas aún. Ya tienes la versión más reciente.', { id: 'updater' });
-        setUpdateStatus('Sin actualizaciones (v1.2.1)');
+        setUpdateStatus('Sin actualizaciones (v1.2.3)');
       } else if (errorMsg.includes('network') || errorMsg.includes('fetch') || errorMsg.includes('connect')) {
         toast.error('Sin conexión a internet. Intenta más tarde.', { id: 'updater', duration: 5000 });
         setUpdateStatus('Error de conexión');
@@ -226,7 +226,7 @@ export const Configuracion = () => {
             </div> 
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Configuración</h1>
-              <p className="text-sm text-slate-500 font-medium tracking-tight">Sistema MSA versión 1.2.1</p>
+              <p className="text-sm text-slate-500 font-medium tracking-tight">Sistema MSA versión 1.2.3</p>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 shadow-sm">
@@ -383,7 +383,7 @@ export const Configuracion = () => {
                   {isOnline ? 'Operativo' : 'Error'}
                 </span>
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                  v1.2.1 Professional
+                  v1.2.3 Professional
                 </span>
               </div>
             </div>
@@ -408,7 +408,7 @@ export const Configuracion = () => {
                 
                 <div>
                    <h3 className="font-black text-lg text-slate-900 tracking-tight">MSA Remote Updater</h3>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Versión Local: 1.2.1</p>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Versión Local: 1.2.3</p>
                 </div>
 
                 <div className="pt-4 w-full">
@@ -655,7 +655,7 @@ export const Configuracion = () => {
                </div>
                
                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-2 px-4 py-1.5 bg-slate-50 rounded-full border border-slate-100">
-                  Taller MSA versión 1.2.1
+                  Taller MSA versión 1.2.3
                </p>
             </div>
          </div>

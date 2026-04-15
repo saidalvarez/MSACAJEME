@@ -328,7 +328,7 @@ export const InicioSesion = ({ onLogin }: LoginProps) => {
               <div className="mb-8 text-center lg:text-left space-y-2 mt-4 lg:mt-0">
                   <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-500/10 border border-blue-500/20 rounded-full mb-2">
                       <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></div>
-                      <span className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Taller MSA v1.2.1</span>
+                      <span className="text-[10px] font-bold text-blue-300 uppercase tracking-widest">Taller MSA v1.2.3</span>
                   </div>
                   <h2 className="text-3xl font-extrabold text-white uppercase tracking-tight">Portal Gestor</h2>
                   <p className="text-slate-400 font-medium text-sm tracking-wide">Ingresa tus credenciales autorizadas asignadas.</p>
@@ -408,7 +408,7 @@ export const InicioSesion = ({ onLogin }: LoginProps) => {
               {/* Dynamic bottom text that flows naturally instead of overlapping */}
               <div className={`mt-10 mb-4 text-center transition-all duration-1000 delay-500 shrink-0 ${showContent ? 'opacity-100' : 'opacity-0'}`}>
                   <p className="text-slate-600 text-[10px] font-bold tracking-widest uppercase mb-1">
-                      Gestor de Taller v1.2.1
+                      Gestor de Taller v1.2.3
                   </p>
                   <div className="flex items-center justify-center gap-2 text-slate-700 text-[9px] font-semibold tracking-widest uppercase">
                       <span>Desarrollo Exclusivo por</span>

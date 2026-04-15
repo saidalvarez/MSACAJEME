@@ -61,9 +61,9 @@ export const FinancesPDF = ({ monthYear, tickets, expenses, sales }: FinancesPDF
           </View>
         </View>
 
-        {/* Ingresos (Tickets) */}
+          {/* Ingresos (Tickets) */}
         <View style={[styles.section, { marginTop: 25 }]}>
-          <Text style={styles.sectionTitle}>Desglose de Ingresos (Tickets)</Text>
+          <Text style={styles.sectionTitle}>Desglose de Ingresos (Tickets Completados)</Text>
           <View style={styles.table}>
             <View style={styles.tHead}>
               <Text style={styles.col1}>Cliente / Nota</Text>
@@ -71,7 +71,7 @@ export const FinancesPDF = ({ monthYear, tickets, expenses, sales }: FinancesPDF
               <Text style={styles.col3}>Monto</Text>
             </View>
             {tickets.map(t => (
-              <View style={styles.tRow} key={t.id}>
+              <View style={styles.tRow} key={t.id} wrap={false}>
                 <View style={styles.col1}>
                   <Text style={{ fontFamily: 'Helvetica-Bold' }}>{t.client_name || t.clientName || 'Sin Nombre'}</Text>
                   <Text style={{ fontSize: 8, color: '#64748b', marginTop: 2 }}>
@@ -98,7 +98,7 @@ export const FinancesPDF = ({ monthYear, tickets, expenses, sales }: FinancesPDF
               <Text style={styles.col3}>Monto</Text>
             </View>
             {sales.map(s => (
-              <View style={styles.tRow} key={s.id}>
+              <View style={styles.tRow} key={s.id} wrap={false}>
                 <Text style={styles.col1}>{s.clientName || s.client_name || 'Venta de Mostrador'}</Text>
                 <Text style={styles.col2}>{new Date(s.date).toLocaleDateString()}</Text>
                 <Text style={styles.col3}>{formatCurrency(s.total)}</Text>
@@ -112,7 +112,7 @@ export const FinancesPDF = ({ monthYear, tickets, expenses, sales }: FinancesPDF
 
         {/* Egresos (Gastos) */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Desglose de Gastos</Text>
+          <Text style={styles.sectionTitle}>Desglose de Gastos Operacionales</Text>
           <View style={styles.table}>
             <View style={styles.tHead}>
               <Text style={styles.col1}>Concepto</Text>
@@ -120,7 +120,7 @@ export const FinancesPDF = ({ monthYear, tickets, expenses, sales }: FinancesPDF
               <Text style={styles.col3}>Monto</Text>
             </View>
             {expenses.filter(e => !e.type || e.type === 'expense').map(e => (
-              <View style={styles.tRow} key={e.id}>
+              <View style={styles.tRow} key={e.id} wrap={false}>
                 <Text style={styles.col1}>{e.description}</Text>
                 <Text style={styles.col2}>{new Date(e.date).toLocaleDateString()}</Text>
                 <Text style={styles.col3}>{formatCurrency(e.amount)}</Text>
@@ -132,6 +132,17 @@ export const FinancesPDF = ({ monthYear, tickets, expenses, sales }: FinancesPDF
           </View>
         </View>
 
+        <Text style={{
+          position: 'absolute',
+          fontSize: 8,
+          bottom: 20,
+          left: 0,
+          right: 0,
+          textAlign: 'center',
+          color: '#94a3b8'
+        }} render={({ pageNumber, totalPages }) => (
+          `Página ${pageNumber} de ${totalPages}`
+        )} fixed />
       </Page>
     </Document>
   );

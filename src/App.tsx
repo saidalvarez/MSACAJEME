@@ -19,7 +19,7 @@ import { MainLayout } from './layout/MainLayout';
 import { LogoutModal } from './layout/LogoutModal';
 import { X, CheckCircle, Sparkles, Rocket } from 'lucide-react';
 
-const CURRENT_APP_VERSION = '1.2.1';
+const CURRENT_APP_VERSION = '1.2.3';
 
 // ── Fullscreen Update Overlay (Absolute Overlay) ──
 const UpdateScreen = ({ version, status, progress, error, onDismiss }: { version: string; status: string; progress: number; error: string; onDismiss: () => void }) => (
@@ -89,19 +89,15 @@ const ChangelogModal = ({ onClose }: { onClose: () => void }) => (
         <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 32px 0', gap: '16px', display: 'flex', flexDirection: 'column' }}>
           <li style={{ display: 'flex', gap: '16px' }}>
             <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><CheckCircle size={20} color="#3b82f6" /></div>
-            <div><strong style={{ display: 'block', color: '#1e293b', fontSize: '15px' }}>Inventario "MegaPro" optimizado</strong><span style={{ color: '#64748b', fontSize: '13px' }}>Se rediseñó el cálculo de "Total Invertido" para omitir la ganancia y basarse sólo en precios de proveedor.</span></div>
+            <div><strong style={{ display: 'block', color: '#1e293b', fontSize: '15px' }}>Sidecar Ligero y Estable</strong><span style={{ color: '#64748b', fontSize: '13px' }}>Se optimizó el motor del backend eliminando binarios de C++ conflictivos. Ahora el servidor enciende instantáneamente sin crasheos silenciosos en Windows.</span></div>
           </li>
           <li style={{ display: 'flex', gap: '16px' }}>
             <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><CheckCircle size={20} color="#3b82f6" /></div>
-            <div><strong style={{ display: 'block', color: '#1e293b', fontSize: '15px' }}>Tablero de Notas Premium</strong><span style={{ color: '#64748b', fontSize: '13px' }}>Se rediseñó por completo el muro de notas. Solucionados los problemas de latencia, doble clic y creación infinita de notas.</span></div>
+            <div><strong style={{ display: 'block', color: '#1e293b', fontSize: '15px' }}>Precisión Financiera Total</strong><span style={{ color: '#64748b', fontSize: '13px' }}>El Panel de Control ha sido reprogramado para filtrar los Gastos y las Ventas Directas estrictamente a sus días exactos sin mezclar historial.</span></div>
           </li>
           <li style={{ display: 'flex', gap: '16px' }}>
             <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><CheckCircle size={20} color="#3b82f6" /></div>
-            <div><strong style={{ display: 'block', color: '#1e293b', fontSize: '15px' }}>Motor de Correo Nativo</strong><span style={{ color: '#64748b', fontSize: '13px' }}>Se solventaron los conflictos de Tokens. El envío silencioso de cotizaciones es 100% operativo.</span></div>
-          </li>
-          <li style={{ display: 'flex', gap: '16px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><CheckCircle size={20} color="#3b82f6" /></div>
-            <div><strong style={{ display: 'block', color: '#1e293b', fontSize: '15px' }}>Actualizador Fullscreen OTA</strong><span style={{ color: '#64748b', fontSize: '13px' }}>Sistema de despliegue inalámbrico mejorado con UI nativa de progreso para actualizaciones sin fricción.</span></div>
+            <div><strong style={{ display: 'block', color: '#1e293b', fontSize: '15px' }}>Reportes PDF Inteligentes</strong><span style={{ color: '#64748b', fontSize: '13px' }}>El motor de PDFs financieros ahora cuenta con paginación inteligente, numeración automática y evita el corte incorrecto de las tablas extensas.</span></div>
           </li>
         </ul>
         <button onClick={onClose} style={{ width: '100%', padding: '16px', background: '#0f172a', color: 'white', borderRadius: '16px', border: 'none', fontWeight: 800, fontSize: '15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s', boxShadow: '0 10px 15px -3px rgba(15,23,42,0.2)' }}>Ingresar al Sistema</button>

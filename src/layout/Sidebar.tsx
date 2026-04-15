@@ -40,7 +40,7 @@ export const Sidebar = ({ onLogout }: SidebarProps) => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">Sistema MSA</h1>
-              <p className="text-sm text-blue-400 font-medium tracking-tight">Sistema MSA versión 1.2.1</p>
+              <p className="text-sm text-blue-400 font-medium tracking-tight">Sistema MSA versión 1.2.3</p>
             </div>
         </div>
       </div>

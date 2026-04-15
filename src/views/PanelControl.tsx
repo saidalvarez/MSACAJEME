@@ -420,7 +420,10 @@ export const PanelControl = () => {
       const end = getEndOfDay(selectedDate);
       
       const isActuallyArchived = t.is_archived || t.isArchived || t.status === 'archived';
-      const isWithinSelectedDay = isToday ? !isActuallyArchived : (tDate >= start && tDate <= end);
+      
+      // tickets y ventas siempre entran por fecha, excepto si es un ticket pendiente de hoy.
+      // Pero como estamos sumando el "Income", TODO ingreso debe ser estrictamente del día validado:
+      const isWithinSelectedDay = (tDate >= start && tDate <= end);
 
       if (!isWithinSelectedDay) return false;
 
@@ -440,8 +443,9 @@ export const PanelControl = () => {
         const expDate = new Date(exp.date);
         const start = getStartOfDay(selectedDate);
         const end = getEndOfDay(selectedDate);
-        const isActuallyArchived = exp.is_archived || exp.isArchived; // Sales/expenses use boolean flags
-        const isWithinSelectedDay = isToday ? !isActuallyArchived : (expDate >= start && expDate <= end);
+        const isActuallyArchived = exp.is_archived || exp.isArchived; 
+        // Los gastos siempre deben pertenecer estrictamente al día seleccionado
+        const isWithinSelectedDay = (expDate >= start && expDate <= end);
         return exp.type === 'expense' && isWithinSelectedDay;
       })
       .reduce((acc: number, exp: any) => acc + Number(exp.amount || 0), 0);
@@ -523,7 +527,7 @@ export const PanelControl = () => {
             </span> 
             {getDayLabel()}
           </h1>
-          <p className="text-slate-500 text-xs font-medium mt-2 ml-16">Sistema Gestor • Taller MSA v1.2.1</p>
+          <p className="text-slate-500 text-xs font-medium mt-2 ml-16">Sistema Gestor • Taller MSA v1.2.3</p>
         </div>
         
         <div className="flex gap-3">
