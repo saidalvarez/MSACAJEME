@@ -41,6 +41,19 @@ fn get_db_config(handle: tauri::AppHandle) -> Result<DbConfig, String> {
     Ok(config)
 }
 
+#[tauri::command]
+fn save_pdf_to_desktop(handle: tauri::AppHandle, bytes: Vec<u8>, filename: String) -> Result<String, String> {
+    let desktop_dir = handle.path().desktop_dir().map_err(|e| e.to_string())?;
+    let target_dir = desktop_dir.join("COTIZACIONES");
+    
+    std::fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
+    
+    let file_path = target_dir.join(filename);
+    std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
+    
+    Ok(file_path.to_str().unwrap_or("Archivo guardado").to_string())
+}
+
 fn find_sidecar(handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     // Strategy 1: Tauri resource resolver (production installs)
     if let Ok(path) = handle.path().resolve("bin/msa-server.exe", tauri::path::BaseDirectory::Resource) {
@@ -186,7 +199,7 @@ pub fn run() {
             .level(log::LevelFilter::Info)
             .build())
         .manage(SidecarState(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![save_db_config, get_db_config, restart_sidecar])
+        .invoke_handler(tauri::generate_handler![save_db_config, get_db_config, restart_sidecar, save_pdf_to_desktop])
         .setup(|app| {
             let handle = app.handle().clone();
             // Launch sidecar in a background thread to NOT block the UI

@@ -5,6 +5,7 @@ import { Op } from 'sequelize';
 import sequelize from '../base_de_datos';
 import { validateRequest } from '../middleware/validateRequest';
 import { createInventorySchema, updateInventorySchema } from '../schemas/inventory';
+import logger from '../utils/logger';
 
 const router = express.Router();
 router.use(verifyToken);
@@ -31,7 +32,7 @@ router.get('/', async (req, res) => {
     });
     res.json(inventory);
   } catch (error) {
-    console.error('Error GET /api/inventory:', error);
+    logger.error('Error GET /api/inventory:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -53,7 +54,7 @@ router.post('/', validateRequest(createInventorySchema as any), async (req, res)
     const item = await Inventory.create(req.body);
     res.status(201).json(item);
   } catch (error) {
-    console.error('Error POST /api/inventory:', error);
+    logger.error('Error POST /api/inventory:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

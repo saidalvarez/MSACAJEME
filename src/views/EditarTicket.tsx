@@ -13,6 +13,7 @@ import { useStore } from '../store/useStore';
 import { InfoModal } from '../components/InfoModal';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 import { Skeleton } from '../components/ui/Skeleton';
+import { createTicketSchema } from '../schemas/ticket';
 
 export interface TicketItem {
   id: number;
@@ -160,35 +161,36 @@ export const EditarTicket = () => {
   };
 
   const handleSave = async () => {
-    const newErrors: string[] = [];
-    if (items.length === 0) newErrors.push('global_items');
-    
-    items.forEach(item => {
-        if (!item.name.trim()) newErrors.push(`item_name_${item.id}`);
-        if (item.price === undefined || item.price === null || item.price < 0 || isNaN(item.price)) newErrors.push(`item_price_${item.id}`);
-    });
+    if (!id || !ticket) return;
 
-    if (newErrors.length > 0) {
-        setErrors(newErrors);
-        toast.error('Por favor corrige los errores antes de guardar');
-        return; 
+    const ticketData = {
+      client_name: ticket.client_name || ticket.clientName,
+      client_phone: ticket.client_phone || ticket.clientPhone,
+      client_email: ticket.client_email || ticket.clientEmail,
+      vehicle: ticket.vehicle,
+      format_type: outputFormat,
+      items: items.map(({ id, ...rest }) => rest),
+      discount: discountPercent,
+      service_photo: servicePhoto,
+      notes: `${notes} ${isUrgent ? '⚠️ URGENTE' : ''}`.trim()
+    };
+
+    const validation = createTicketSchema.safeParse(ticketData);
+
+    if (!validation.success) {
+      const fieldErrors = validation.error.issues.map(err => err.path.join('.'));
+      setErrors(fieldErrors);
+      toast.error(validation.error.issues[0].message);
+      return;
     }
     
     setErrors([]);
-
-    if (!id || !ticket) return;
-    
     const loadingToast = toast.loading('Guardando cambios...');
     
     try {
       await editTicket(id, {
-        total: grandTotal,
-        items,
-        formatType: outputFormat,
-        discount: discountPercent,
-        envio: 0,
-        servicePhoto: servicePhoto,
-        notes: `${notes} ${isUrgent ? '⚠️ URGENTE' : ''}`.trim()
+        ...ticketData,
+        total: grandTotal
       });
 
       toast.success('Servicio actualizado con éxito', { id: loadingToast });

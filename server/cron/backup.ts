@@ -2,106 +2,122 @@ import cron from 'node-cron';
 import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import winston from 'winston';
 import { Op } from 'sequelize';
 import Ticket from '../models/Ticket';
 import Sale from '../models/Sale';
 import ItemTicket from '../models/ItemTicket';
 import SaleItem from '../models/SaleItem';
-
+import logger from '../utils/logger';
 import os from 'os';
 
-// Determine base directories for logs and backups from environment or default to AppData/Home
+// Determine base directories from environment or default to AppData/Home
 const DEFAULT_DATA_DIR = path.join(os.homedir(), '.msa_cajeme');
-const LOGS_DIR = process.env.MSA_LOG_DIR || path.join(DEFAULT_DATA_DIR, 'logs');
 const BACKUP_DIR = process.env.MSA_BACKUP_DIR || path.join(DEFAULT_DATA_DIR, 'backups');
 
-// Ensure directories exist immediately at startup
+// Ensure directory exists
 try {
-  if (!fs.existsSync(LOGS_DIR)) fs.mkdirSync(LOGS_DIR, { recursive: true });
   if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 } catch (e) {
-  console.error(`[CRON] Error creating directories at ${LOGS_DIR} or ${BACKUP_DIR}:`, e);
+  console.error(`[CRON] Error creating backup directory at ${BACKUP_DIR}:`, e);
 }
 
-// Configure Winston logger to use the dynamic LOGS_DIR
-export const errorLogger = winston.createLogger({
-  level: 'info',
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({ filename: path.join(LOGS_DIR, 'error.log'), level: 'error' }),
-    new winston.transports.File({ filename: path.join(LOGS_DIR, 'combined.log') }),
-  ],
-});
+/**
+ * Runs a pg_dump backup and saves it to the backup directory.
+ */
+const runDatabaseBackup = () => {
+  const dbName = process.env.DB_NAME || 'msa_cajeme';
+  const dbUser = process.env.DB_USER || 'postgres';
+  const dbPass = process.env.DB_PASS || process.env.DB_PASSWORD || 'postgres';
+  const dbHost = process.env.DB_HOST || 'localhost';
+  const dbPort = process.env.DB_PORT || '5432';
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupFile = path.join(BACKUP_DIR, `backup_${dbName}_${timestamp}.sql`);
+
+  const cmd = `pg_dump -U ${dbUser} -h ${dbHost} -p ${dbPort} -d ${dbName} -F c -f "${backupFile}"`;
+
+  logger.info(`[BACKUP] Iniciando respaldo de "${dbName}"...`);
+  exec(cmd, { env: { ...process.env, PGPASSWORD: dbPass } }, (error, _stdout, stderr) => {
+    if (error) {
+      logger.error(`[BACKUP] Falló el respaldo`, { error: error.message, stderr });
+      return;
+    }
+    if (stderr) {
+      logger.warn(`[BACKUP] stderr: ${stderr}`);
+    }
+    logger.info(`[BACKUP] Respaldo creado: ${backupFile}`);
+  });
+};
+
+/**
+ * Cleans up old backup files (older than 30 days)
+ */
+const cleanupOldBackups = () => {
+  try {
+    const files = fs.readdirSync(BACKUP_DIR);
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    let cleaned = 0;
+
+    for (const file of files) {
+      if (!file.startsWith('backup_')) continue;
+      const filePath = path.join(BACKUP_DIR, file);
+      const stats = fs.statSync(filePath);
+      
+      if (stats.mtimeMs < thirtyDaysAgo) {
+        fs.unlinkSync(filePath);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      logger.info(`[BACKUP] Limpieza: ${cleaned} respaldos antiguos eliminados (>30 días)`);
+    }
+  } catch (err: any) {
+    logger.error('[BACKUP] Error en limpieza de respaldos:', { error: err.message });
+  }
+};
 
 export const setupCronJobs = () => {
-  console.log(`[CRON] Schedulers initialized. Backups: ${BACKUP_DIR}, Logs: ${LOGS_DIR}`);
+  logger.info(`[CRON] Schedulers initialized. Backups: ${BACKUP_DIR}`);
 
-  // Run everyday at Midnight (00:00)
-  cron.schedule('0 0 * * *', () => {
-    const dbName = process.env.DB_NAME || 'msa_cajeme';
-    const dbUser = process.env.DB_USER || 'postgres';
-    const dbPass = process.env.DB_PASS || 'postgres';
-    const dbHost = process.env.DB_HOST || 'localhost';
-    const dbPort = process.env.DB_PORT || '5432';
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupFile = path.join(BACKUP_DIR, `backup_${dbName}_${timestamp}.sql`);
-
-    // We use PGPASSWORD env variable to avoid password prompt
-    const cmd = `pg_dump -U ${dbUser} -h ${dbHost} -p ${dbPort} -d ${dbName} -F c -f "${backupFile}"`;
-
-    console.log(`Starting scheduled database backup for ${dbName}...`);
-    exec(cmd, { env: { ...process.env, PGPASSWORD: dbPass } }, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Backup execution error: ${error.message}`);
-        errorLogger.error(`Database Backup Failed`, { error: error.message, stderr });
-        return;
-      }
-      if (stderr) {
-        console.warn(`Backup stderr: ${stderr}`);
-      }
-      console.log(`Backup successfully created at ${backupFile}`);
-      errorLogger.info(`Scheduled backup completed`, { file: backupFile });
-    });
+  // ═══ BACKUP: Every 6 hours (00:00, 06:00, 12:00, 18:00) ═══
+  cron.schedule('0 */6 * * *', () => {
+    runDatabaseBackup();
+    cleanupOldBackups();
   }, {
     scheduled: true,
     timezone: "America/Phoenix"
   } as any);
 
-  // Automated Soft-Delete Cleanup (Everyday at 1:00 AM)
+  // ═══ SOFT-DELETE CLEANUP: Every day at 1:00 AM ═══
   cron.schedule('0 1 * * *', async () => {
     try {
-        const fifteenDaysAgo = new Date();
-        fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
+      const fifteenDaysAgo = new Date();
+      fifteenDaysAgo.setDate(fifteenDaysAgo.getDate() - 15);
 
-        console.log('Initiating 15-day soft-delete cleanup...');
-        
-        // Find tickets and sales before destroying cascades
-        const oldTickets = await Ticket.findAll({ where: { deletedAt: { [Op.lte]: fifteenDaysAgo } }, paranoid: false });
-        for (const t of oldTickets) {
-            await ItemTicket.destroy({ where: { ticket_id: t.getDataValue('id') }, force: true });
-            await t.destroy({ force: true });
-        }
+      logger.info('[CRON] Iniciando limpieza de soft-deletes (>15 días)...');
+      
+      const oldTickets = await Ticket.findAll({ where: { deletedAt: { [Op.lte]: fifteenDaysAgo } }, paranoid: false });
+      for (const t of oldTickets) {
+        await ItemTicket.destroy({ where: { ticket_id: t.getDataValue('id') }, force: true });
+        await t.destroy({ force: true });
+      }
 
-        const oldSales = await Sale.findAll({ where: { deletedAt: { [Op.lte]: fifteenDaysAgo } }, paranoid: false });
-        for (const s of oldSales) {
-            await SaleItem.destroy({ where: { sale_id: s.getDataValue('id') }, force: true });
-            await s.destroy({ force: true });
-        }
+      const oldSales = await Sale.findAll({ where: { deletedAt: { [Op.lte]: fifteenDaysAgo } }, paranoid: false });
+      for (const s of oldSales) {
+        await SaleItem.destroy({ where: { sale_id: s.getDataValue('id') }, force: true });
+        await s.destroy({ force: true });
+      }
 
-        console.log(`Cleaned up ${oldTickets.length} tickets and ${oldSales.length} sales permanently.`);
-        errorLogger.info('Soft deletes cleanup executed', { tickets: oldTickets.length, sales: oldSales.length });
+      logger.info(`[CRON] Limpieza completada: ${oldTickets.length} tickets, ${oldSales.length} ventas eliminadas`);
     } catch (error: any) {
-        console.error('Error during soft-delete cleanup:', error.message);
-        errorLogger.error('Soft delete cleanup failed', { error: error.message });
+      logger.error('[CRON] Error en limpieza:', { error: error.message });
     }
   }, {
     scheduled: true,
     timezone: "America/Phoenix"
   } as any);
 };
+
+// Re-export for backwards compatibility
+export { logger as errorLogger };

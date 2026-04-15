@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import type { Ticket } from '../types';
 
 // Tipos de formato
@@ -32,7 +32,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 5,
   },
-  logoBox: { width: 260, height: 75, justifyContent: 'center' },
+  logoBox: { width: 260, height: 75 },
+  logoImg: { width: '100%', height: '100%', objectFit: 'contain' },
   businessName: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#1e3a8a', lineHeight: 1.2 },
   businessSub: { fontSize: 9, color: '#475569', marginTop: 2, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 1 },
   headerRight: { 
@@ -334,9 +335,7 @@ export const QuotePDF = ({ quote, formatType }: QuotePDFProps) => {
         {/* ENCABEZADO */}
         <View style={styles.headerRow}>
           <View style={styles.logoBox}>
-            <Text style={styles.businessName}>MULTISERVICIOS</Text>
-            <Text style={styles.businessName}>AUTOMOTRIZ CAJEME</Text>
-            <Text style={styles.businessSub}>Mecánica General • Diagnóstico</Text>
+            <Image src="/logo.png" style={styles.logoImg} />
           </View>
           <View style={styles.headerRight}>
             <Text style={styles.mainTitle}>COTIZACIÓN</Text>

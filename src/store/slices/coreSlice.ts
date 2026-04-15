@@ -1,85 +1,140 @@
-import type { AppStateCreator } from '../storeTypes';
+import { io, Socket } from 'socket.io-client';
 import { dataAdapter } from '../../services/dataAdapter';
-import { io } from 'socket.io-client';
 import { syncData } from '../../utils/sync';
+import type { AppStateCreator } from '../storeTypes';
 
-export const createCoreSlice: AppStateCreator<Pick<import('../storeTypes').CoreSlice, keyof import('../storeTypes').CoreSlice>> = (set, get) => ({
+const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace('/api', '');
+
+export const createCoreSlice: AppStateCreator<import('../storeTypes').CoreSlice> = (set, get) => ({
   isLoading: false,
+  isOnline: navigator.onLine,
   error: null,
+  pendingTickets: JSON.parse(localStorage.getItem('msa_pending_tickets') || '[]'),
+  socket: null as Socket | null,
 
   loadAllData: async () => {
     set({ isLoading: true, error: null });
     try {
-      const [tickets, clients, inventory, expenses, sales, catalog] = (await Promise.all([
-        dataAdapter.getTickets(),
+      // Parallel fetch for speed
+      const [tickets, clients, inventory, catalog] = await Promise.all([
+        dataAdapter.getTickets(20, 0),
         dataAdapter.getClients(),
         dataAdapter.getInventory(),
-        dataAdapter.getExpenses(),
-        dataAdapter.getSales(),
         dataAdapter.getCatalog()
-      ])) as any[];
-      
-      set({
-        tickets: tickets?.rows || tickets || [],
-        clients: clients?.rows || clients || [],
-        inventory: inventory?.rows || inventory || [],
-        expenses: expenses?.rows || expenses || [],
-        sales: sales?.rows || sales || [],
-        catalog: catalog?.rows || catalog || [],
-        isLoading: false
+      ]);
+
+      // Nested stores also need to load their specific data
+      await Promise.all([
+        get().loadExpenses(),
+        get().loadSales()
+      ]);
+
+      set({ 
+        tickets: (tickets as any).rows || tickets || [],
+        totalTickets: (tickets as any).count || 0,
+        clients: (clients as any).rows || clients || [],
+        inventory: (inventory as any).rows || inventory || [],
+        catalog: (catalog as any).rows || catalog || []
       });
-    } catch (error: any) {
-      console.error("Failed to load initial data:", error);
-      set({ error: error.message, isLoading: false });
+    } catch (e: any) {
+      console.error("Error loading initial data:", e);
+      set({ error: e.message || "Error al cargar datos" });
+    } finally {
+      set({ isLoading: false });
     }
   },
 
   initWebSockets: () => {
-    const socket = io(import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3001');
-    socket.on('ticket_updated', async () => {
-      try {
-        const tickets = await dataAdapter.getTickets() as any;
-        set({ tickets: tickets.rows || tickets || [] });
-      } catch(e) { console.error("Socket fetch fail", e) }
+    const { socket } = get();
+    if (socket) return;
+
+    const newSocket = io(API_BASE, {
+      transports: ['websocket'],
+      autoConnect: true
     });
+
+    set({ socket: newSocket });
+
+    newSocket.on('ticket_updated', () => get().loadTickets(1));
+    newSocket.on('inventory_updated', () => {
+      dataAdapter.getInventory().then(res => {
+         set({ inventory: (res as any).rows || res || [] });
+      });
+    });
+
+    newSocket.on('connect', () => console.log('WebSocket Connected'));
+  },
+
+  removePendingTicket: (id: string) => {
+    const { pendingTickets } = get();
+    const next = pendingTickets.filter(t => t.id !== id);
+    set({ pendingTickets: next });
+    localStorage.setItem('msa_pending_tickets', JSON.stringify(next));
   },
 
   syncOfflineData: async () => {
      try {
        await syncData();
      } catch (e) {
-       console.error("General sync failed:", e);
+       console.error("Sincronización general fallida:", e);
      }
 
-     const { pendingTickets } = get();
-     if (pendingTickets.length === 0) return;
+     const { pendingTickets, loadTickets } = get();
+     if (!pendingTickets || pendingTickets.length === 0) return;
  
-     console.log(`Attempting to sync ${pendingTickets.length} offline tickets...`);
+     console.log(`[SYNC] Procesando ${pendingTickets.length} tickets pendientes...`);
      const remaining: any[] = [];
+     let wasUpdated = false;
      
+     // Current Arizona Time for fallback
+     const nowArizona = new Date().toLocaleString('sv-SE', { timeZone: 'America/Phoenix' }).replace(' ', 'T');
+
      for (const ticket of pendingTickets) {
        try {
+         // ROBUST MAPPING: Ensure data meets backend requirements (avoid 400 Bad Request)
          const ticketToSync = {
            ...ticket,
-           client_name: ticket.client_name || ticket.clientName || 'Sin Nombre (Recuperado)',
+           client_name: ticket.client_name || ticket.clientName || 'Sin Nombre (Offline)',
            client_phone: String(ticket.client_phone || ticket.clientPhone || ''),
            client_email: String(ticket.client_email || ticket.clientEmail || ''),
+           date: ticket.date || (ticket as any).Date || nowArizona,
            format_type: ticket.format_type || ticket.formatType || 'payment_info',
-           ticket_number: Number(ticket.ticket_number || ticket.ticketNumber || 0),
-           items: ticket.items?.map((item: any) => {
+           items: Array.isArray(ticket.items) ? ticket.items.map((item: any) => {
+             if (!item) return null;
              const { id, ...rest } = item;
-             return rest;
-           }) || []
+             return {
+               ...rest,
+               name: item.name || item.brand || item.description || item.label || 'Producto/Servicio',
+               price: Number(item.price || 0),
+               quantity: Number(item.quantity || 1)
+             };
+           }).filter(Boolean) : []
          };
+
          await dataAdapter.createTicket(ticketToSync, true);
-         console.log(`Successfully synced ticket: ${ticket.id}`);
-       } catch (err) {
-         console.error(`Failed to sync ticket ${ticket.id}, keeping in queue.`);
-         remaining.push(ticket);
+         wasUpdated = true;
+       } catch (err: any) {
+         const errorMessage = err?.message || String(err);
+         
+         // 1. Detect duplicates/already exists
+         if (errorMessage.toLowerCase().includes('unique') || 
+             errorMessage.toLowerCase().includes('already exists')) {
+           console.log(`[SYNC] Ticket ${ticket.id} ya existe. Limpiando.`);
+           wasUpdated = true;
+           continue; 
+         }
+
+         // 2. Store specific error in the ticket object for UI feedback
+         console.error(`[SYNC] Fallo crítico para ticket ${ticket.id}:`, errorMessage);
+         remaining.push({ ...ticket, lastError: errorMessage });
        }
      }
  
      set({ pendingTickets: remaining });
      localStorage.setItem('msa_pending_tickets', JSON.stringify(remaining));
+     
+     if (wasUpdated) {
+       await loadTickets(1);
+     }
   }
 });

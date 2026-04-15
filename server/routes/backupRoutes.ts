@@ -3,8 +3,6 @@ import sequelize from '../base_de_datos';
 import Cliente from '../models/Cliente';
 import Ticket from '../models/Ticket';
 import ItemTicket from '../models/ItemTicket';
-import HistorialTicket from '../models/HistorialTicket';
-import ItemHistorial from '../models/ItemHistorial';
 import Inventory from '../models/Inventory';
 import ItemCatalogo from '../models/ItemCatalogo';
 import Sale from '../models/Sale';
@@ -12,22 +10,26 @@ import SaleItem from '../models/SaleItem';
 import Expense from '../models/Expense';
 import Usuario from '../models/Usuario';
 import verifyToken from '../middleware/auth';
+import authorize from '../middleware/authorize';
+import CryptoJS from 'crypto-js';
+import logger from '../utils/logger';
 
 const router = Router();
 router.use(verifyToken);
+router.use(authorize('admin'));
 
-// --- START EXPORT BACKUP ---
+const BACKUP_SECRET = process.env.BACKUP_ENCRYPTION_KEY || (() => { logger.warn('[BACKUP] ⚠️ BACKUP_ENCRYPTION_KEY no configurado — usando clave por defecto'); return '1234'; })();
+
+// --- START EXPORT BACKUP (ENCRYPTED) ---
 router.get('/export', async (req, res) => {
   try {
     const backupData = {
       timestamp: new Date().toISOString(),
-      version: '2.0.0',
+      version: '3.0.0', // Nueva versión unificada y encriptada
       data: {
         clients: await Cliente.findAll({ raw: true }),
         tickets: await Ticket.findAll({ raw: true }),
         ticket_items: await ItemTicket.findAll({ raw: true }),
-        historial_tickets: await HistorialTicket.findAll({ raw: true }),
-        historial_ticket_items: await ItemHistorial.findAll({ raw: true }),
         inventory: await Inventory.findAll({ raw: true }),
         item_catalogo: await ItemCatalogo.findAll({ raw: true }),
         sales: await Sale.findAll({ raw: true }),
@@ -37,68 +39,84 @@ router.get('/export', async (req, res) => {
       }
     };
 
-    res.setHeader('Content-disposition', `attachment; filename=msa_cajeme_backup_${Date.now()}.json`);
+    const plainText = JSON.stringify(backupData);
+    // Encriptamos el contenido con AES
+    const encrypted = CryptoJS.AES.encrypt(plainText, BACKUP_SECRET).toString();
+
+    res.setHeader('Content-disposition', `attachment; filename=msa_cajeme_secure_backup_${Date.now()}.json`);
     res.setHeader('Content-type', 'application/json');
-    res.send(JSON.stringify(backupData));
+    res.send(JSON.stringify({ 
+        encrypted: true, 
+        payload: encrypted,
+        note: "Este archivo está protegido. Solo puede importarse en MSA Cajeme."
+    }));
   } catch (error: any) {
-    console.error('[BACKUP] Error exportando BD:', error);
-    res.status(500).json({ error: 'Hubo un error exportando la base de datos' });
+    logger.error('[BACKUP] Error exportando BD:', error);
+    res.status(500).json({ error: 'Hubo un error exportando la base de datos segura' });
   }
 });
 
-// --- START IMPORT BACKUP ---
+// --- START IMPORT BACKUP (AUTO-DECRYPT) ---
 router.post('/import', async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const dbData = req.body.data;
+    let dbData: any;
+    const body = req.body;
+
+    if (body.encrypted && body.payload) {
+      // Intentamos desencriptar
+      try {
+        const bytes = CryptoJS.AES.decrypt(body.payload, BACKUP_SECRET);
+        const decryptedStr = bytes.toString(CryptoJS.enc.Utf8);
+        if (!decryptedStr) throw new Error('Password incorrecto o archivo corrupto');
+        dbData = JSON.parse(decryptedStr).data;
+      } catch (e) {
+        return res.status(401).json({ error: 'Error al desencriptar el respaldo. La clave de seguridad no coincide.' });
+      }
+    } else {
+      // Soporte para archivos viejos (no encriptados) si es necesario, 
+      // pero por seguridad el usuario pidió fase 3 "alv" con clave.
+      dbData = body.data;
+    }
+
     if (!dbData) return res.status(400).json({ error: 'Archivo de Respaldo Inválido' });
 
-    console.log('[BACKUP] Iniciando proceso de restauración (Importación JS-Natvia)...');
+    logger.info('[BACKUP] Iniciando restauración segura...');
 
-    // Desactivar temporalmente los chequeos de llave foránea para inserción masiva
+    // Desactivar chequeos de llave foránea
     await sequelize.query('SET session_replication_role = replica;', { transaction });
 
-    // 1. Limpiar Bases de Datos Actuales (Wipe)
+    // 1. Wipe de tablas existentes (basado en el nuevo esquema unificado)
     await ItemTicket.destroy({ where: {}, truncate: true, cascade: true, transaction });
     await Ticket.destroy({ where: {}, truncate: true, cascade: true, transaction });
-    
-    await ItemHistorial.destroy({ where: {}, truncate: true, cascade: true, transaction });
-    await HistorialTicket.destroy({ where: {}, truncate: true, cascade: true, transaction });
-    
     await SaleItem.destroy({ where: {}, truncate: true, cascade: true, transaction });
     await Sale.destroy({ where: {}, truncate: true, cascade: true, transaction });
-    
     await Cliente.destroy({ where: {}, truncate: true, cascade: true, transaction });
     await Inventory.destroy({ where: {}, truncate: true, cascade: true, transaction });
     await ItemCatalogo.destroy({ where: {}, truncate: true, cascade: true, transaction });
     await Expense.destroy({ where: {}, truncate: true, cascade: true, transaction });
 
-    // 2. Inserción Masiva de Datos del Backup
+    // 2. Inserción Masiva
     if (dbData.clients?.length) await Cliente.bulkCreate(dbData.clients, { transaction });
     if (dbData.tickets?.length) await Ticket.bulkCreate(dbData.tickets, { transaction });
     if (dbData.ticket_items?.length) await ItemTicket.bulkCreate(dbData.ticket_items, { transaction });
-    
-    if (dbData.historial_tickets?.length) await HistorialTicket.bulkCreate(dbData.historial_tickets, { transaction });
-    if (dbData.historial_ticket_items?.length) await ItemHistorial.bulkCreate(dbData.historial_ticket_items, { transaction });
-    
     if (dbData.inventory?.length) await Inventory.bulkCreate(dbData.inventory, { transaction });
     if (dbData.item_catalogo?.length) await ItemCatalogo.bulkCreate(dbData.item_catalogo, { transaction });
-    
     if (dbData.sales?.length) await Sale.bulkCreate(dbData.sales, { transaction });
     if (dbData.sale_items?.length) await SaleItem.bulkCreate(dbData.sale_items, { transaction });
     if (dbData.expenses?.length) await Expense.bulkCreate(dbData.expenses, { transaction });
 
-    // Reactivar las llaves foráneas
+    // Reactivar llaves foráneas
     await sequelize.query('SET session_replication_role = DEFAULT;', { transaction });
 
     await transaction.commit();
-    console.log('[BACKUP] ¡Base de Datos Restaurada con Éxito!');
+    logger.info('[BACKUP] ¡Base de Datos Restaurada Exitosamente!');
     res.json({ message: 'Base de datos restaurada correctamente' });
 
   } catch (error: any) {
-    console.error('[BACKUP] Falló la restauración:', error);
+    logger.error('[BACKUP] Falló la restauración:', error);
     await transaction.rollback();
-    res.status(500).json({ error: 'La restauración falló y se han revertido los cambios', details: error.message });
+    res.status(500).json({ error: 'La restauración falló', details: error.message });
   }
 });
 

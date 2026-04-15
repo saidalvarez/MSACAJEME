@@ -16,8 +16,8 @@ export const ticketItemSchema = z.object({
 export const createTicketSchema = z.object({
   body: z.object({
     client_name: z.string().min(1, 'El nombre del cliente es requerido'),
-    client_phone: z.string().optional().nullable(),
-    client_email: z.string().email('Debe ser un email válido').optional().or(z.literal('')),
+    client_phone: z.string().nullish(),
+    client_email: z.string().email('Debe ser un email válido').nullish().or(z.literal('')),
     vehicle: z.string().optional().nullable(),
     format_type: z.enum(['payment_info', 'invoice', 'estimate']).optional().default('payment_info'),
     items: z.array(ticketItemSchema).min(1, 'Se requiere al menos un servicio o producto'),
@@ -29,8 +29,8 @@ export const updateTicketSchema = z.object({
   body: z.object({
     status: z.enum(['pending', 'completed', 'cancelled']).optional(),
     client_name: z.string().optional(),
-    client_phone: z.string().optional().nullable(),
-    client_email: z.string().email('Debe ser un email válido').optional().or(z.literal('')),
+    client_phone: z.string().nullish(),
+    client_email: z.string().email('Debe ser un email válido').nullish().or(z.literal('')),
     vehicle: z.string().optional().nullable(),
     format_type: z.enum(['payment_info', 'invoice', 'estimate']).optional(),
     items: z.array(ticketItemSchema).optional(),

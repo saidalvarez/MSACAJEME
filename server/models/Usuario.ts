@@ -25,7 +25,7 @@ Usuario.init({
     allowNull: true
   },
   role: {
-    type: DataTypes.STRING,
+    type: DataTypes.ENUM('admin', 'recepcion', 'mecanico'),
     defaultValue: 'admin'
   },
   force_password_change: {

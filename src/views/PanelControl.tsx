@@ -12,6 +12,7 @@ import { formatCurrency, formatPdfFileName } from '../utils/format';
 import { QuotePDF } from '../components/QuotePDF';
 import { DangerModal } from '../components/DangerModal';
 import { InfoModal } from '../components/InfoModal';
+import { EmailModal } from '../components/EmailModal';
 import { sendWhatsAppNotification, formatTicketMessage } from '../utils/notifications';
 import { useStore } from '../store/useStore';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
@@ -26,9 +27,10 @@ const WhatsAppIcon = ({ size = 24, className = "" }) => (
 
 // --- COMPONENTE DE TARJETA INDIVIDUAL ---
 // @ts-ignore
-const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom }: { ticket: any, handleDelete: (id: string) => void, handleToggleStatus: (id: string, currentStatus: string) => void, handleZoom: (img: string) => void }) => {
+const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom, removePendingTicket, isToday = true }: { ticket: any, handleDelete: (id: string) => void, handleToggleStatus: (id: string, currentStatus: string) => void, handleZoom: (img: string) => void, removePendingTicket: (id: string) => void, isToday?: boolean }) => {
     const format = ticket.format_type || ticket.formatType || 'payment_info';
     const [isGenerating, setIsGenerating] = useState(false);
+    const [showEmailModal, setShowEmailModal] = useState(false);
 
     const handleWhatsApp = useCallback(async () => {
         // Descargar PDF automáticamente antes de abrir WhatsApp
@@ -36,13 +38,22 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
             setIsGenerating(true);
             const document = <QuotePDF quote={ticket} formatType={format} />;
             const blob = await pdf(document).toBlob();
+            const filename = formatPdfFileName(ticket.client_name || ticket.clientName, 'Cotizacion', ticket.ticket_number || ticket.ticketNumber || 0);
             
-            const url = URL.createObjectURL(blob);
-            const a = window.document.createElement('a');
-            a.href = url;
-            a.download = formatPdfFileName(ticket.client_name || ticket.clientName, 'Cotizacion', ticket.ticket_number || ticket.ticketNumber || 0);
-            a.click();
-            URL.revokeObjectURL(url);
+            try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                const buffer = await blob.arrayBuffer();
+                const bytes = Array.from(new Uint8Array(buffer));
+                await invoke('save_pdf_to_desktop', { bytes, filename });
+            } catch (e) {
+                console.error("Fallo al guardar nativamente, usando fallback", e);
+                const url = URL.createObjectURL(blob);
+                const a = window.document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
             toast.success("PDF descargado. Adjúntalo en el chat de WhatsApp.", { duration: 4000 });
         } catch (error) {
             console.error("Error generating PDF:", error);
@@ -64,27 +75,36 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
         }, 1000);
     }, [ticket, format]);
 
-    const handleEmail = useCallback(async () => {
-        const subject = encodeURIComponent(`Detalles de Servicio #${ticket.ticket_number || ticket.ticketNumber} - Multiservicios Cajeme`);
-        const body = encodeURIComponent(`Hola ${ticket.client_name || ticket.clientName},\n\nAdjunto enviamos el documento correspondiente a su servicio #${ticket.ticket_number || ticket.ticketNumber}.\n\nTotal: ${formatCurrency(ticket.total)}\nGracias por su preferencia.`);
-        window.location.href = `mailto:${ticket.client_email || ticket.clientEmail || ''}?subject=${subject}&body=${body}`;
-    }, [ticket]);
+    const handleEmail = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        setShowEmailModal(true);
+    }, []);
 
     const handleDownload = useCallback(async () => {
         try {
             setIsGenerating(true);
             const document = <QuotePDF quote={ticket} formatType={format} />;
             const blob = await pdf(document).toBlob();
+            const filename = formatPdfFileName(ticket.client_name || ticket.clientName, 'Cotizacion', ticket.ticket_number || ticket.ticketNumber || 0);
             
-            const url = URL.createObjectURL(blob);
-            const a = window.document.createElement('a');
-            a.href = url;
-            a.download = formatPdfFileName(ticket.client_name || ticket.clientName, 'Cotizacion', ticket.ticket_number || ticket.ticketNumber || 0);
-            a.click();
-            URL.revokeObjectURL(url);
+            try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                const buffer = await blob.arrayBuffer();
+                const bytes = Array.from(new Uint8Array(buffer));
+                const savedPath = await invoke('save_pdf_to_desktop', { bytes, filename });
+                toast.success(`Ruta: ${savedPath}`, { duration: 5000 });
+            } catch (e) {
+                console.error("Fallo al guardar nativamente, usando fallback", e);
+                const url = URL.createObjectURL(blob);
+                const a = window.document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
         } catch (error) {
             console.error("Error generating PDF:", error);
-            alert("Error al intentar generar la cotización.");
+            toast.error("Error al intentar generar la cotización.");
         } finally {
             setIsGenerating(false);
         }
@@ -95,6 +115,44 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
         'payment_no_retention': 'SIN RETENCIÓN',
         'basic': 'BÁSICO'
     };
+
+    if (!isToday) {
+        const isArchived = ticket.is_archived || ticket.isArchived || ticket.status === 'archived';
+        return (
+            <div className={`bg-white p-3 md:p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 min-h-[4rem] group ${isArchived ? 'opacity-80' : ''}`}>
+                <div className="flex items-center gap-3 w-full md:w-auto min-w-0">
+                    <span className="bg-slate-100 text-slate-500 border border-slate-200 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-md shrink-0">
+                        #{ticket.ticket_number || ticket.ticketNumber}
+                    </span>
+                    <h4 className="font-bold text-sm text-slate-800 truncate pr-2 max-w-[200px] shrink-0">
+                        {ticket.client_name || ticket.clientName}
+                    </h4>
+                    
+                    <div className="hidden sm:flex items-center gap-2 overflow-hidden flex-1">
+                        <span className="text-[11px] text-slate-400 shrink-0">📋</span>
+                        <span className="text-[11px] font-medium text-slate-500 truncate">
+                            {ticket.items?.map((item: any) => item.name).join(' • ')}
+                        </span>
+                    </div>
+                </div>
+                
+                <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end shrink-0">
+                    <span className="text-sm font-black tracking-tight text-emerald-600 block">
+                        {formatCurrency(ticket.total)}
+                    </span>
+                    {isArchived ? (
+                         <span className="bg-slate-800 text-white border-slate-900 border text-[9px] uppercase font-bold px-2 py-1 rounded flex items-center gap-1.5 leading-none tracking-widest">
+                             📁 Bitácora
+                         </span>
+                    ) : (
+                         <span className="bg-warning-50 text-warning-600 border-warning-200 border text-[9px] uppercase font-bold px-2 py-1 rounded flex items-center gap-1.5 leading-none tracking-widest shadow-sm">
+                             ⏳ Pendiente
+                         </span>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={`bg-white p-5 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group relative overflow-hidden ${
@@ -153,6 +211,12 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                                 PDF: {formatLabels[format] || format}
                             </span>
 
+                            {ticket._isOffline && (
+                                <span className="bg-orange-500 text-white text-[9px] uppercase font-bold px-2 py-1 rounded shadow-sm flex items-center gap-1.5 leading-none animate-pulse">
+                                    <Clock size={10} /> SINCRONIZANDO
+                                </span>
+                            )}
+
                             {(ticket.client_phone || ticket.clientPhone) && (
                               <span className="text-[10px] font-semibold text-slate-400 bg-slate-50 border border-slate-100 px-2 py-1 rounded leading-none">{ticket.client_phone || ticket.clientPhone}</span>
                             )}
@@ -194,7 +258,11 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                         >
                             <CheckCircle size={14} />
                         </button>
-                        <button onClick={() => handleDelete(ticket.id)} className="px-3 py-2 text-slate-500 hover:bg-danger-50 hover:text-danger-600 transition-colors flex justify-center items-center bg-slate-50/50" title="Eliminar Registro">
+                        <button 
+                            onClick={() => ticket._isOffline ? removePendingTicket(ticket.id) : handleDelete(ticket.id)} 
+                            className="px-3 py-2 text-slate-500 hover:bg-danger-50 hover:text-danger-600 transition-colors flex justify-center items-center bg-slate-50/50" 
+                            title={ticket._isOffline ? "Descartar Ticket Atorado" : "Eliminar Registro"}
+                        >
                             <Trash2 size={14} />
                         </button>
                     </div>
@@ -207,17 +275,42 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                     "{ticket.notes}"
                 </div>
             )}
+
+            {ticket.lastError && (
+                <div className="mt-4 p-3 bg-danger-50 border border-danger-100 rounded-lg flex items-start gap-3">
+                    <div className="bg-danger-600 text-white rounded-full p-1 mt-0.5">
+                        <X size={10} strokeWidth={3} />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase text-danger-700 leading-none mb-1">Error de Sincronización</p>
+                        <p className="text-[11px] text-danger-600 font-medium leading-tight">{ticket.lastError}</p>
+                    </div>
+                </div>
+            )}
+
+            <EmailModal 
+              isOpen={showEmailModal} 
+              onClose={() => setShowEmailModal(false)}
+              defaultEmail={ticket.client_email || ticket.clientEmail}
+              ticketNumber={ticket.ticket_number || ticket.ticketNumber}
+              ticket={ticket}
+              formatType={format}
+            />
         </div>
     );
 });
 
 export const PanelControl = () => {
-  const { tickets, expenses, sales, deleteTicket, updateTicketStatus, archiveTicketsByDate } = useStore();
+  const { tickets, expenses, sales, pendingTickets, loadExpenses, loadSales, deleteTicket, updateTicketStatus, archiveTicketsByDate, removePendingTicket } = useStore();
   
   const [pastTickets, setPastTickets] = useState<any[]>([]);
   const [isLoadingPast, setIsLoadingPast] = useState(false);
 
-  const allTickets = useMemo(() => [...tickets, ...pastTickets], [tickets, pastTickets]);
+  const allTickets = useMemo(() => {
+    // Combine synced and pending tickets so they all appear in the same dashboard
+    const pendingWithStatus = (pendingTickets || []).map((t: any) => ({ ...t, status: 'pending', _isOffline: true }));
+    return [...pendingWithStatus, ...tickets, ...pastTickets];
+  }, [tickets, pastTickets, pendingTickets]);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'pending' | 'completed'>('pending');
@@ -234,6 +327,12 @@ export const PanelControl = () => {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Phoenix', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const isToday = selectedDate === today;
+
+  // Carga inicial de métricas financieras
+  useEffect(() => {
+    loadExpenses();
+    loadSales();
+  }, [loadExpenses, loadSales]);
 
   useEffect(() => {
     let active = true;
@@ -272,7 +371,7 @@ export const PanelControl = () => {
   const getDayLabel = () => {
     if (selectedDate === today) return "Tickets de hoy";
     
-    const d = new Date(`${selectedDate}T12:00:00`); // Evita problemas de zona horaria cruzada
+    const d = new Date(`${selectedDate}T12:00:00`);
     const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', year: 'numeric' };
     return `Tickets del ${d.toLocaleDateString('es-MX', options)}`;
   };
@@ -285,9 +384,9 @@ export const PanelControl = () => {
       const start = getStartOfDay(selectedDate);
       const end = getEndOfDay(selectedDate);
       
-      // Today: pending tickets always show; past days: strict date match
+      // Today: ALL active (non-archived) tickets belong to today. Past days require strict date match.
       const isWithinDates = isToday 
-        ? (t.status === 'pending' ? true : (ticketDate >= start && ticketDate <= end))
+        ? true
         : (ticketDate >= start && ticketDate <= end);
 
       // 2. Search term filter
@@ -302,76 +401,83 @@ export const PanelControl = () => {
       // Today: filter by status tab; Past days: show all statuses
       const matchesStatus = isToday ? t.status === filterStatus : true;
       
-      // 3. Archive filter
-      const isNotArchived = !t.is_archived && !t.isArchived;
+      // 3. Archive filter (today: only unarchived. past days: both archived and unarchived)
+      const isActuallyArchived = t.is_archived || t.isArchived || t.status === 'archived';
+      const archiveCondition = isToday ? !isActuallyArchived : true;
 
-      return isWithinDates && matchesSearch && matchesStatus && isNotArchived;
+      return isWithinDates && matchesSearch && matchesStatus && archiveCondition;
     });
   }, [allTickets, selectedDate, searchTerm, filterStatus, isToday]);
 
 
   // Financial Summaries based on selected date
   const dailyIncome = useMemo(() => {
-    // Include all tickets (active + history) and all sales
     const allEconomicActivity = [...sales, ...allTickets];
     
     return allEconomicActivity.filter((t: any) => {
       const tDate = new Date(t.date);
       const start = getStartOfDay(selectedDate);
       const end = getEndOfDay(selectedDate);
-      const isWithinSelectedDay = tDate >= start && tDate <= end;
+      
+      const isActuallyArchived = t.is_archived || t.isArchived || t.status === 'archived';
+      const isWithinSelectedDay = isToday ? !isActuallyArchived : (tDate >= start && tDate <= end);
 
       if (!isWithinSelectedDay) return false;
 
       // Logic for Tickets (active or archived)
       if (t.ticket_number || t.ticketNumber) {
-        return t.status === 'completed'; // Only completed ones are income
+        return t.status === 'completed';
       } 
       
       // Logic for Sales (assume all sales are income)
       return true;
     }).reduce((acc: number, curr: any) => acc + Number(curr.total || 0), 0);
-  }, [sales, allTickets, selectedDate]);
+  }, [sales, allTickets, selectedDate, isToday]);
 
   const totalExpenses = useMemo(() => {
-    // Include all expenses for the day (even archived ones)
     return expenses
       .filter((exp: any) => {
         const expDate = new Date(exp.date);
         const start = getStartOfDay(selectedDate);
         const end = getEndOfDay(selectedDate);
-        return exp.type === 'expense' && expDate >= start && expDate <= end;
+        const isActuallyArchived = exp.is_archived || exp.isArchived; // Sales/expenses use boolean flags
+        const isWithinSelectedDay = isToday ? !isActuallyArchived : (expDate >= start && expDate <= end);
+        return exp.type === 'expense' && isWithinSelectedDay;
       })
       .reduce((acc: number, exp: any) => acc + Number(exp.amount || 0), 0);
-  }, [expenses, selectedDate]);
+  }, [expenses, selectedDate, isToday]);
 
   const completedCount = useMemo(() => {
     return allTickets.filter((t: any) => {
         const tDate = new Date(t.date);
         const start = getStartOfDay(selectedDate);
         const end = getEndOfDay(selectedDate);
-        return t.status === 'completed' && tDate >= start && tDate <= end;
+        const isActuallyArchived = t.is_archived || t.isArchived || t.status === 'archived';
+        const isWithinSelectedDay = isToday ? !isActuallyArchived : (tDate >= start && tDate <= end);
+        return t.status === 'completed' && isWithinSelectedDay;
     }).length;
-  }, [allTickets, selectedDate]);
+  }, [allTickets, selectedDate, isToday]);
 
   const totalNet = dailyIncome - totalExpenses;
 
   const handleCorteDeDia = useCallback(() => {
-    const completedCount = tickets.filter((t: any) => {
+    const completedLocalCount = tickets.filter((t: any) => {
       const tDate = new Date(t.date);
       const start = getStartOfDay(selectedDate);
       const end = getEndOfDay(selectedDate);
-      return t.status === 'completed' && !t.isArchived && tDate >= start && tDate <= end;
+      const isActuallyArchived = t.is_archived || t.isArchived || t.status === 'archived';
+      const isWithinSelectedDay = isToday ? !isActuallyArchived : (tDate >= start && tDate <= end);
+      return t.status === 'completed' && isWithinSelectedDay;
     }).length;
 
-    if (completedCount === 0) {
+    if (completedLocalCount === 0) {
       toast.error('No hay servicios completados pendientes de corte para este día.');
       return;
     }
 
-    setCorteCount(completedCount);
+    setCorteCount(completedLocalCount);
     setShowCorteModal(true);
-  }, [tickets, selectedDate]);
+  }, [tickets, selectedDate, isToday]);
 
   const confirmCorte = useCallback(async () => {
     await archiveTicketsByDate(selectedDate);
@@ -417,7 +523,7 @@ export const PanelControl = () => {
             </span> 
             {getDayLabel()}
           </h1>
-          <p className="text-slate-500 text-xs font-medium mt-2 ml-16">Sistema Gestor • Taller MSA v1.0</p>
+          <p className="text-slate-500 text-xs font-medium mt-2 ml-16">Sistema Gestor • Taller MSA v1.2.1</p>
         </div>
         
         <div className="flex gap-3">
@@ -500,7 +606,7 @@ export const PanelControl = () => {
         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 border-l-4 border-l-orange-500 relative group">
             <h3 className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-1.5 flex items-center gap-1">
               Terminados
-              <InfoTooltip content="Servicios finalizados el día de hoy que están listos para ser entregados o cobrados." />
+              <InfoTooltip content="Servicios finalizados el día seleccionado que están listos para ser entregados o cobrados." />
             </h3>
              <p className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
                 {completedCount}
@@ -570,7 +676,7 @@ export const PanelControl = () => {
               </span>
             )}
         </div>
-
+ 
         <div className="space-y-4" ref={animationParent}>
             {filteredTickets.length === 0 ? (
                 <div className="text-center py-16 bg-white rounded-xl border border-dashed border-slate-300">
@@ -588,6 +694,8 @@ export const PanelControl = () => {
                         handleDelete={handleDelete} 
                         handleToggleStatus={handleToggleStatus}
                         handleZoom={setZoomedImage}
+                        removePendingTicket={removePendingTicket}
+                        isToday={isToday}
                     />
                 ))
             )}

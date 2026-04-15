@@ -45,9 +45,9 @@ router.post('/recover/:type/:id', async (req, res) => {
             await AuditLog.create({
                 action: 'recover',
                 entity: 'Ticket',
-                entityId: id,
-                userId: req.body.userId || 'admin',
-                details: { recoveredAt: new Date() }
+                entity_id: id,
+                user_id: req.body.userId || 'admin',
+                details: JSON.stringify({ recoveredAt: new Date() })
             });
 
             // Emit via socket if available
@@ -80,8 +80,8 @@ router.delete('/force/:type/:id', async (req, res) => {
             await AuditLog.create({
                 action: 'permanent_delete',
                 entity: 'Ticket',
-                entityId: id,
-                userId: 'admin'
+                entity_id: id,
+                user_id: 'admin'
             });
         } else if (type === 'sale') {
             await SaleItem.destroy({ where: { sale_id: id }, force: true });

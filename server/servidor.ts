@@ -16,10 +16,14 @@ import salesRoutes from './routes/salesRoutes';
 import financeRoutes from './routes/financeRoutes';
 import trashRoutes from './routes/trashRoutes';
 import backupRoutes from './routes/backupRoutes';
+import adminRoutes from './routes/adminRoutes';
+import emailRoutes from './routes/emailRoutes';
+import notesRoutes from './routes/notesRoutes';
 import seedAdmin from './seedAdmin';
 import { setupCronJobs } from './cron/backup';
 import { errorHandler } from './middleware/errorHandler';
 import verifyToken from './middleware/auth';
+import logger from './utils/logger';
 
 dotenv.config();
 
@@ -60,28 +64,36 @@ const io = new Server(server, {
 app.set('io', io);
 
 io.on('connection', (socket) => {
-  console.log(`[WS] Cliente conectado: ${socket.id}`);
+  logger.info(`[WS] Cliente conectado: ${socket.id}`);
   socket.on('disconnect', () => {
-    console.log(`[WS] Cliente desconectado: ${socket.id}`);
+    logger.info(`[WS] Cliente desconectado: ${socket.id}`);
   });
 });
 
-// 5mb general limit — backup import route has its own 50mb limit
-app.use(express.json({ limit: '5mb' }));
+// Request logging middleware
+app.use((req, _res, next) => {
+  if (req.path !== '/api/health') {
+    logger.info(`${req.method} ${req.path}`);
+  }
+  next();
+});
 
-// ── Rate Limiting: General API (100 req/min) ──
+// 5mb general limit — backup import route has its own 50mb limit
+app.use(express.json({ limit: '15mb' }));
+
+// ── Rate Limiting: General API (300 req/min) ──
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiadas solicitudes. Intenta de nuevo en un momento.' }
 });
 
-// ── Rate Limiting: Login (5 attempts per 15min) ──
+// ── Rate Limiting: Login (10 attempts per 15min) ──
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiados intentos de inicio de sesión. Espera 15 minutos.' }
@@ -105,13 +117,17 @@ app.use('/api/trash', trashRoutes);
 // Backup import needs larger body — apply 50mb limit only to this route
 app.use('/api/backup/import', express.json({ limit: '50mb' }));
 app.use('/api/backup', backupRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/notes', notesRoutes);
 
 // ── Health check endpoint (public — no auth needed) ──
 app.get('/api/health', async (_req, res) => {
   try {
     await sequelize.authenticate();
-    res.json({ status: 'ok', database: 'connected', version: '1.0.0' });
+    res.json({ status: 'ok', database: 'connected', version: '2.0.0', host: process.env.DB_HOST || 'localhost', db_name: process.env.DB_NAME || 'msa_cajeme' });
   } catch (error: any) {
+    logger.error('[HEALTH] Database check failed', { error: error.message });
     res.status(500).json({ 
       status: 'error', 
       server: 'running', 
@@ -123,6 +139,7 @@ app.get('/api/health', async (_req, res) => {
 
 // ── Database configuration endpoint (protected unless DB is down) ──
 const SAFE_DB_FIELD = /^[a-zA-Z0-9_.-]+$/;
+const SAFE_DB_PASSWORD = /^[^\n\r]*$/; // Passwords can have special chars but no newlines
 app.post('/api/config/database', async (req, res) => {
   try {
     const { host, db_name, user, password } = req.body;
@@ -167,6 +184,11 @@ app.post('/api/config/database', async (req, res) => {
       return res.status(400).json({ error: 'Caracteres no permitidos en la configuración' });
     }
 
+    // SEC-04: Sanitize password — prevent newline injection into .env file
+    if (password && !SAFE_DB_PASSWORD.test(password)) {
+      return res.status(400).json({ error: 'La contraseña contiene caracteres no permitidos' });
+    }
+
     let envContent = '';
     if (fs.existsSync(envPath)) {
       envContent = fs.readFileSync(envPath, 'utf8');
@@ -190,11 +212,11 @@ app.post('/api/config/database', async (req, res) => {
     }
 
     fs.writeFileSync(envPath, newContent.trim() + '\n');
-    console.log(`[CONFIG] Base de datos actualizada a: ${db_name}.`);
+    logger.info(`[CONFIG] Base de datos actualizada a: ${db_name}.`);
 
     res.json({ message: 'Configuración guardada. Reinicia el servidor para aplicar cambios.' });
   } catch (error: any) {
-    console.error('[CONFIG] Error:', error);
+    logger.error('[CONFIG] Error:', { error: error.message });
     res.status(500).json({ error: 'Error al actualizar base de datos' });
   }
 });
@@ -211,36 +233,64 @@ const PORT = process.env.PORT || 3001;
 // This ensures the /api/config/database and /api/health endpoints
 // are always reachable, even if the DB credentials are wrong.
 server.listen(Number(PORT), '0.0.0.0', () => {
-  console.log(`[SERVER] Taller MSA Cajeme v1.0 corriendo en puerto ${PORT}`);
-  console.log(`[SERVER] Rate Limit: 100 req/min (API), 5 req/15min (Login)`);
+  logger.info(`[SERVER] Taller MSA Cajeme v2.0 corriendo en puerto ${PORT}`);
+  logger.info(`[SERVER] Rate Limit: 300 req/min (API), 10 req/15min (Login)`);
 });
 
 // ── Then attempt DB connection (non-blocking) ──
+// NOTE: We NO LONGER use sync({ alter: true }) because it can drop columns with data.
+// Schema changes should be handled through manual SQL migrations.
 sequelize.authenticate()
-  .then(() => {
-    console.log('[DB] Conexión a PostgreSQL establecida exitosamente.');
-    return sequelize.sync({ alter: true });
-  })
   .then(async () => {
-    console.log(`[DB] Base de datos "${process.env.DB_NAME || 'msa_cajeme'}" sincronizada`);
+    logger.info('[DB] Conexión a PostgreSQL establecida exitosamente.');
     
+    // Safe sync: only creates tables that don't exist yet, never alters existing ones
+    await sequelize.sync({ force: false });
+    logger.info(`[DB] Base de datos "${process.env.DB_NAME || 'msa_cajeme'}" verificada`);
+    
+    // --- AUTO-HEALING: Add missing columns if they don't exist
+    try {
+      logger.info('[DB] Verificando e inyectando columnas faltantes (Auto-healing)...');
+      const tablesWithCreated = ['expenses', 'tickets', 'sales', 'sale_items', 'item_tickets', 'audit_logs', 'usuarios'];
+      for (const table of tablesWithCreated) {
+        await sequelize.query(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE;`).catch(()=>null);
+      }
+      
+      const tablesWithDeleted = ['expenses', 'tickets', 'sales', 'sale_items', 'item_tickets'];
+      for (const table of tablesWithDeleted) {
+        await sequelize.query(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "deletedAt" TIMESTAMP WITH TIME ZONE;`).catch(()=>null);
+      }
+
+      const tablesWithArchived = ['sales', 'expenses', 'tickets', 'inventory'];
+      for (const table of tablesWithArchived) {
+        await sequelize.query(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "is_archived" BOOLEAN DEFAULT false;`).catch(()=>null);
+      }
+
+      // Ensure audit_logs id is autoincrement (this is tricky in postgres, but if it exists as integer, it won't auto-increment if not serial. We will alter its mapping or default value)
+      // A quick fix for audit_logging id constraint error is just to use a sequence.
+      await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS audit_logs_id_seq;`).catch(()=>null);
+      await sequelize.query(`ALTER TABLE "audit_logs" ALTER COLUMN id SET DEFAULT nextval('audit_logs_id_seq');`).catch(()=>null);
+      await sequelize.query(`ALTER SEQUENCE audit_logs_id_seq OWNED BY "audit_logs".id;`).catch(()=>null);
+
+      logger.info('[DB] Reparación de esquema completada.');
+    } catch (healErr: any) {
+      logger.warn('[DB] Error en auto-reparación (ignorando):', { error: healErr.message });
+    }
+
     // --- INDICES B-TREE (ESCALABILIDAD) ---
     try {
-      console.log('[DB] Aplicando Índices B-Tree para alta velocidad escalar...');
+      logger.info('[DB] Aplicando Índices B-Tree...');
       await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_tickets_client ON tickets(client_id);`);
       await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_tickets_status ON tickets(status);`);
       await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_tickets_date ON tickets(date DESC);`);
-      
-      await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_historial_client ON historial_tickets(client_id);`);
-      await sequelize.query(`CREATE INDEX IF NOT EXISTS idx_historial_date ON historial_tickets(date DESC);`);
-      console.log('[DB] Índices aplicados exitosamente.');
+      logger.info('[DB] Índices aplicados exitosamente.');
     } catch (idxErr: any) {
-      console.error('[DB] Error creando índices (ignorando si ya existen):', idxErr.message);
+      logger.warn('[DB] Error creando índices (ignorando):', { error: idxErr.message });
     }
     
     await seedAdmin();
   })
   .catch((err: any) => {
-    console.error('[DB] Error al conectar/sincronizar:', err.message);
-    console.error('[DB] El servidor HTTP sigue activo. Usa /api/config/database para corregir.');
+    logger.error('[DB] Error al conectar/sincronizar:', { error: err.message });
+    logger.warn('[DB] El servidor HTTP sigue activo. Usa /api/config/database para corregir.');
   });

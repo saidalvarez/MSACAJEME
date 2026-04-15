@@ -6,7 +6,7 @@ import {
   CheckCircle, MessageCircle, FileText, Mail, RefreshCw, AlertTriangle, ShoppingCart, DollarSign, ChevronRight, UserPlus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import { pdf } from '@react-pdf/renderer';
 import { formatCurrency, formatPdfFileName } from '../utils/format';
 import { QuotePDF, type QuoteFormatType } from '../components/QuotePDF'; 
 import { EmailModal } from '../components/EmailModal'; 
@@ -15,6 +15,7 @@ import { InfoModal } from '../components/InfoModal';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 import { PhoneInput } from '../components/ui/PhoneInput';
 import { sendWhatsAppNotification, formatTicketMessage } from '../utils/notifications';
+import { createTicketSchema } from '../schemas/ticket';
 
 import type { Ticket, TicketItem, Client } from '../types';
 
@@ -161,54 +162,49 @@ export const NuevoTicket = () => {
   };
 
   const handleSave = async () => {
-    const finalClientName = selectedClient ? selectedClient.name : clientSearch;
-    
-    const newErrors: string[] = [];
-    if (!finalClientName.trim()) newErrors.push('client');
-    if (items.length === 0) newErrors.push('global_items');
-    
-    if (clientPhone) {
-      const cleanPhone = clientPhone.replace(/\D/g, '');
-      if (cleanPhone.length !== 10) {
-        toast.error("El teléfono debe tener 10 dígitos (ej: 6442039334)");
-        newErrors.push('phone');
-      }
-    }
-    
-    items.forEach(item => {
-        if (!item.name.trim()) newErrors.push(`item_name_${item.id}`);
-        if (item.price === undefined || item.price === null || item.price < 0 || isNaN(item.price)) newErrors.push(`item_price_${item.id}`);
-    });
+    const ticketData = {
+      client_name: selectedClient ? selectedClient.name : clientSearch,
+      client_phone: clientPhone,
+      client_email: clientEmail,
+      vehicle: clientVehicle,
+      format_type: outputFormat,
+      items: items.map(({ id, ...rest }) => rest), // remove internal IDs
+      discount: discountPercent,
+      service_photo: servicePhoto,
+      notes: `${notes} ${isUrgent ? '⚠️ URGENTE' : ''}`.trim()
+    };
 
-    if (newErrors.length > 0) {
-        setErrors(newErrors);
-        if (newErrors.includes('client')) {
-           window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-        return; 
+    const validation = createTicketSchema.safeParse(ticketData);
+
+    if (!validation.success) {
+      const fieldErrors = validation.error.issues.map(err => err.path.join('.'));
+      setErrors(fieldErrors);
+      
+      const errorMessage = validation.error.issues[0].message;
+      toast.error(errorMessage);
+
+      if (fieldErrors.includes('client_name')) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
     }
-    
+
     setErrors([]); 
     
-    const newTicketData = await addTicket({
-      client_id: selectedClient?.id,
-      clientName: selectedClient ? selectedClient.name : clientSearch,
-      clientPhone: clientPhone,
-      clientEmail: clientEmail,
-      vehicle: clientVehicle,
-      total: grandTotal,
-      items,
-      status: 'pending',
-      formatType: outputFormat,
-      discount: discountPercent,
-      envio: 0,
-      servicePhoto: servicePhoto,
-      notes: `${notes} ${isUrgent ? '⚠️ URGENTE' : ''}`.trim()
-    });
+    try {
+      const newTicketData = await addTicket({
+        ...ticketData,
+        client_id: selectedClient?.id, // kept separate as it's not in the base schema but used by store
+        total: grandTotal, // needed for store state
+        status: 'pending'
+      });
 
-    setCreatedTicket(newTicketData);
-    toast.dismiss(); 
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+      setCreatedTicket(newTicketData);
+      toast.success('Servicio guardado correctamente');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+       console.error("Save failed:", error);
+    }
   };
 
   const handleReset = () => {
@@ -311,25 +307,46 @@ export const NuevoTicket = () => {
                     </div>
                     
                     <div className="grid grid-cols-3 gap-4 mb-8">
-                        <PDFDownloadLink 
-                            document={<QuotePDF quote={createdTicket} formatType={outputFormat} />} 
-                            fileName={formatPdfFileName(createdTicket.client_name || createdTicket.clientName, 'Cotizacion', createdTicket.ticket_number || createdTicket.ticketNumber || 0)}
-                            className="h-16 bg-slate-50 hover:bg-primary-600 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group"
+                        <button 
+                          onClick={async () => {
+                            try {
+                              toast.loading('Generando PDF...', { id: 'pdf-success' });
+                              const doc = <QuotePDF quote={createdTicket} formatType={outputFormat} />;
+                              const blob = await pdf(doc).toBlob();
+                              const filename = formatPdfFileName(createdTicket.client_name || createdTicket.clientName, 'Cotizacion', createdTicket.ticket_number || createdTicket.ticketNumber || 0);
+                              try {
+                                const { invoke } = await import('@tauri-apps/api/core');
+                                const buffer = await blob.arrayBuffer();
+                                const bytes = Array.from(new Uint8Array(buffer));
+                                await invoke('save_pdf_to_desktop', { bytes, filename });
+                                toast.success(`Guardado en COTIZACIONES`, { id: 'pdf-success', duration: 4000 });
+                              } catch (e) {
+                                const url = URL.createObjectURL(blob);
+                                const a = window.document.createElement('a');
+                                a.href = url; a.download = filename; a.click();
+                                URL.revokeObjectURL(url);
+                                toast.success('PDF descargado', { id: 'pdf-success' });
+                              }
+                            } catch (err) {
+                              console.error('PDF error:', err);
+                              toast.error('Error al generar PDF', { id: 'pdf-success' });
+                            }
+                          }}
+                          className="h-16 bg-slate-50 hover:bg-primary-600 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group active:scale-95"
                         >
-                            {() => (
-                                <>
-                                    <FileText size={18} className="text-primary-600 group-hover:text-white transition-colors" /> 
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-white">PDF</span>
-                                </>
-                            )}
-                        </PDFDownloadLink>
+                            <FileText size={18} className="text-primary-600 group-hover:text-white transition-colors" /> 
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-white">PDF</span>
+                        </button>
 
                         <button 
                           onClick={() => {
-                              if (!selectedClient?.phone && !clientPhone) return alert("No hay teléfono guardado para WhatsApp");
+                              if (!selectedClient?.phone && !clientPhone) {
+                                toast.error('No hay teléfono guardado para WhatsApp');
+                                return;
+                              }
                               handleWhatsAppSuccess();
                           }}
-                          className="h-16 bg-slate-50 hover:bg-success-600 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group"
+                          className="h-16 bg-slate-50 hover:bg-success-600 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group active:scale-95"
                         >
                              <MessageCircle size={18} className="text-success-600 group-hover:text-white" /> 
                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-white">WHA</span>
@@ -337,7 +354,7 @@ export const NuevoTicket = () => {
 
                         <button 
                           onClick={() => setShowEmailModal(true)}
-                          className="h-16 bg-slate-50 hover:bg-warning-600 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group"
+                          className="h-16 bg-slate-50 hover:bg-warning-600 border border-slate-200 rounded-xl flex flex-col items-center justify-center gap-1 transition-all group active:scale-95"
                         >
                              <Mail size={18} className="text-warning-600 group-hover:text-white" /> 
                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-white">Email</span>
@@ -364,6 +381,8 @@ export const NuevoTicket = () => {
               onClose={() => setShowEmailModal(false)}
               defaultEmail={selectedClient?.email || clientEmail || ''}
               ticketNumber={createdTicket.ticket_number || createdTicket.ticketNumber || 0}
+              ticket={createdTicket}
+              formatType={outputFormat}
             />
           </div>, document.body
         )}

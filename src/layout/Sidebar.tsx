@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, PlusCircle, ShoppingCart, Settings, 
-  Users, DollarSign, Package, LogOut, FileText, StickyNote 
+  Users, DollarSign, Package, LogOut, FileText, StickyNote, Activity 
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -39,10 +39,8 @@ export const Sidebar = ({ onLogout }: SidebarProps) => {
                 <Settings size={18} />
             </div>
             <div>
-                <h1 className="text-lg font-semibold tracking-tight text-white leading-none">
-                   MSA Cajeme
-                </h1>
-                <p className="text-[9px] text-blue-400 font-bold uppercase tracking-widest mt-1 leading-none">Taller MSA v1.0</p>
+              <h1 className="text-2xl font-bold text-white">Sistema MSA</h1>
+              <p className="text-sm text-blue-400 font-medium tracking-tight">Sistema MSA versión 1.2.1</p>
             </div>
         </div>
       </div>
@@ -86,6 +84,11 @@ export const Sidebar = ({ onLogout }: SidebarProps) => {
         <Link to="/notas" className={linkClass('/notas')}>
           <StickyNote size={16} /> 
           <span>Notas</span>
+        </Link>
+        
+        <Link to="/monitor" className={linkClass('/monitor')}>
+          <Activity size={16} /> 
+          <span>Sistema</span>
         </Link>
       </nav>
 

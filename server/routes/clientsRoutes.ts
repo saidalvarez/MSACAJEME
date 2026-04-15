@@ -1,50 +1,41 @@
 import express from 'express';
-import { Cliente, Ticket, HistorialTicket, Sale } from '../models';
+import { Cliente, Ticket, Sale } from '../models';
 import verifyToken from '../middleware/auth';
 import { Op } from 'sequelize';
 import sequelize from '../base_de_datos';
+import logger from '../utils/logger';
 
 const router = express.Router();
 router.use(verifyToken);
 
 router.get('/', async (req, res) => {
   try {
-    console.log('GET /api/clients');
+    logger.info('GET /api/clients');
     const query = `
       SELECT c.*,
-        CAST(COALESCE(t.visits, 0) + COALESCE(h.visits, 0) AS INTEGER) as total_visits,
-        CAST(COALESCE(t.spent, 0) + COALESCE(h.spent, 0) AS NUMERIC) as total_spent,
-        COALESCE(
-            CASE WHEN h.last_ticket IS NULL THEN t.last_ticket
-                 WHEN t.last_ticket IS NULL THEN h.last_ticket
-                 WHEN t.last_ticket > h.last_ticket THEN t.last_ticket
-                 ELSE h.last_ticket END,
-            c.created_at
-        ) as last_activity
+        CAST(COALESCE(t.visits, 0) AS INTEGER) as total_visits,
+        CAST(COALESCE(t.spent, 0) AS NUMERIC) as total_spent,
+        COALESCE(t.last_ticket, c.created_at) as last_activity
       FROM clients c
       LEFT JOIN (
         SELECT client_id, COUNT(id) as visits, SUM(total) as spent, MAX(date) as last_ticket 
         FROM tickets 
+        WHERE "deletedAt" IS NULL
         GROUP BY client_id
       ) t ON c.id = t.client_id
-      LEFT JOIN (
-        SELECT client_id, COUNT(id) as visits, SUM(total) as spent, MAX(date) as last_ticket 
-        FROM historial_tickets 
-        GROUP BY client_id
-      ) h ON c.id = h.client_id
       ORDER BY c.created_at DESC
     `;
     const [clients] = await sequelize.query(query);
     res.json(clients);
   } catch (error) {
-    console.error('Error GET /api/clients:', error);
+    logger.error('Error GET /api/clients:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
 router.post('/', async (req, res) => {
   try {
-    console.log('POST /api/clients - Body:', req.body);
+    logger.info('POST /api/clients - Body:', req.body);
     const { name, phone } = req.body;
     
     // GENERATE CUSTOM ID: [Initials] + [Last 4 Phone]
@@ -76,10 +67,10 @@ router.post('/', async (req, res) => {
     }
 
     const client = await Cliente.create(req.body);
-    console.log('Client created:', client.id);
+    logger.info(`Client created: ${client.id}`);
     res.status(201).json(client);
   } catch (error) {
-    console.error('Error POST /api/clients:', error);
+    logger.error('Error POST /api/clients:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -130,17 +121,12 @@ router.put('/:id', async (req, res) => {
 
     // Cascade update to other tables
     if (newName !== oldName || newPhone !== oldPhone || newId !== id) {
-      console.log(`Cascading update for client ID ${id} -> ${newId}: ${oldName} -> ${newName}`);
+      logger.info(`Cascading update for client ID ${id} -> ${newId}: ${oldName} -> ${newName}`);
       
       const whereClause = { client_id: id };
       
       // Update by client_id FIRST in all related tables
       await Ticket.update(
-        { client_id: newId, client_name: newName, client_phone: newPhone },
-        { where: whereClause, transaction: t }
-      );
-      
-      await HistorialTicket.update(
         { client_id: newId, client_name: newName, client_phone: newPhone },
         { where: whereClause, transaction: t }
       );
@@ -154,7 +140,6 @@ router.put('/:id', async (req, res) => {
       const legacyWhere = { client_name: oldName, client_id: null };
       
       await Ticket.update({ client_id: newId, client_name: newName, client_phone: newPhone }, { where: legacyWhere, transaction: t });
-      await HistorialTicket.update({ client_id: newId, client_name: newName, client_phone: newPhone }, { where: legacyWhere, transaction: t });
       await Sale.update({ client_id: newId, client_name: newName, client_phone: newPhone }, { where: legacyWhere, transaction: t });
     }
 
@@ -173,7 +158,7 @@ router.put('/:id', async (req, res) => {
     }
   } catch (error) {
     if (t) await t.rollback();
-    console.error('Error updating client:', error);
+    logger.error('Error updating client:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

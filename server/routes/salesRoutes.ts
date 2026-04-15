@@ -4,13 +4,14 @@ import sequelize from '../base_de_datos';
 import verifyToken from '../middleware/auth';
 import { Op } from 'sequelize';
 import crypto from 'crypto';
+import logger from '../utils/logger';
 
 const router = express.Router();
 router.use(verifyToken);
 
 router.get('/', async (req, res) => {
   try {
-    console.log('GET /api/sales');
+    logger.info('GET /api/sales');
     const sales = await Sale.findAll({
       where: {
         [Op.or]: [
@@ -23,7 +24,7 @@ router.get('/', async (req, res) => {
     });
     res.json(sales);
   } catch (error) {
-    console.error('Error GET /api/sales:', error);
+    logger.error('Error GET /api/sales:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -31,10 +32,10 @@ router.get('/', async (req, res) => {
 router.post('/', async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    console.log('POST /api/sales - Body:', req.body);
+    logger.info('POST /api/sales - Body:', req.body);
     const { items, ...saleData } = req.body;
     
-    console.log('[SALE] Received request. Items:', items?.length, 'Sale Info:', saleData);
+    logger.info(`[SALE] Received request. Items: ${items?.length}, Sale Info:`, saleData);
 
     // Robust mapping for SnakeCase vs CamelCase
     const finalSaleData = {
@@ -55,7 +56,16 @@ router.post('/', async (req, res) => {
     }
     finalSaleData.total = calculatedTotal;
 
-    console.log('[SALE] Creating record with:', finalSaleData);
+    logger.info('[SALE] Creating record with:', finalSaleData);
+    
+    // LOGIC-05: Idempotency — prevent duplicate sales from offline sync retries
+    const existingSale = await Sale.findByPk(finalSaleData.id, { transaction: t });
+    if (existingSale) {
+      await t.commit();
+      logger.info(`[SALE] Sale ${finalSaleData.id} already exists — returning existing record (idempotent)`);
+      return res.status(200).json(await Sale.findByPk(existingSale.id, { include: [{ model: SaleItem, as: 'items' }] }));
+    }
+
     const sale = await Sale.create(finalSaleData, { transaction: t });
 
     if (items && items.length > 0) {
@@ -83,22 +93,22 @@ router.post('/', async (req, res) => {
            
            if (inventoryItem) {
              const qty = Number(item.quantity || 1);
-             console.log(`[SALE] Deducting stock for "${inventoryItem.brand}". Current: ${inventoryItem.currentStock}, Subtracting: ${qty}`);
+             logger.info(`[SALE] Deducting stock for "${inventoryItem.brand}". Current: ${inventoryItem.currentStock}, Subtracting: ${qty}`);
              const newStock = Math.max(0, inventoryItem.currentStock - qty);
              await inventoryItem.update({ currentStock: newStock }, { transaction: t });
            } else {
-             console.warn(`[SALE] Inventory item ${inventory_id} not found for deduction`);
+             logger.warn(`[SALE] Inventory item ${inventory_id} not found for deduction`);
            }
         }
       }
     }
 
     await t.commit();
-    console.log('[SALE] Successfully recorded sale and adjusted inventory.');
+    logger.info('[SALE] Successfully recorded sale and adjusted inventory.');
     res.status(201).json(await Sale.findByPk(sale.id, { include: [{ model: SaleItem, as: 'items' }] }));
   } catch (error: any) {
-    console.error('Error POST /api/sales:', error);
-    console.error('Stack Trace:', error.stack);
+    logger.error('Error POST /api/sales:', error);
+    logger.error('Stack Trace:', error.stack);
     await t.rollback();
     res.status(500).json({ 
       error: 'Error al registrar venta', 
@@ -121,10 +131,10 @@ router.post('/clear', async (req, res) => {
       { is_archived: true },
       { where: { date: { [Op.between]: [startOfDay, endOfDay] } } }
     );
-    console.log(`[SALES] Archived ${count} sales for month ${month}`);
+    logger.info(`[SALES] Archived ${count} sales for month ${month}`);
     res.json({ message: 'Ventas archivadas exitosamente', count });
   } catch (error) {
-    console.error('[SALES] Error archiving:', error);
+    logger.error('[SALES] Error archiving:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

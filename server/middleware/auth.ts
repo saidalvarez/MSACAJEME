@@ -1,7 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || (() => { console.warn('[AUTH] ⚠️ JWT_SECRET no configurado en .env — usando fallback inseguro'); return 'dev_fallback_only'; })();
+const JWT_SECRET = process.env.JWT_SECRET || (() => { 
+  console.error('⚠️⚠️⚠️ [AUTH] JWT_SECRET no configurado — USANDO CLAVE INSEGURA. Configurar en .env para producción ⚠️⚠️⚠️'); 
+  return 'dev_fallback_only'; 
+})();
 
 export interface AuthenticatedRequest extends Request {
   user?: string | jwt.JwtPayload;

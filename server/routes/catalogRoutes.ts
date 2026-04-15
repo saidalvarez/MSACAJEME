@@ -7,7 +7,7 @@ router.use(verifyToken);
 
 router.get('/', async (req, res) => {
   try {
-    const catalog = await ItemCatalogo.findAll({ order: [['brand', 'ASC']] });
+    const catalog = await ItemCatalogo.findAll({ order: [['brand', 'ASC']], raw: true });
     res.json(catalog);
   } catch (error) {
     res.status(500).json({ error: 'Error interno del servidor' });

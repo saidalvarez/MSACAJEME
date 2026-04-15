@@ -3,7 +3,10 @@ import type { Ticket, Client, InventoryItem, Expense, Sale, CatalogItem } from '
 
 export interface TicketSlice {
   tickets: Ticket[];
-  pendingTickets: Ticket[];
+  totalTickets: number;
+  hasMoreTickets: boolean;
+  currentPage: number;
+  
   addTicket: (data: any) => Promise<any>;
   updateTicketStatus: (id: string, status: string) => Promise<void>;
   editTicket: (id: string, data: any) => Promise<void>;
@@ -11,6 +14,7 @@ export interface TicketSlice {
   removeTicketGlobal: (id: string) => Promise<void>;
   archiveTicketsByDate: (date: string) => Promise<void>;
   clearTickets: () => Promise<void>;
+  loadTickets: (page?: number, search?: string) => Promise<void>;
 }
 
 export interface ClientSlice {
@@ -33,6 +37,8 @@ export interface InventorySlice {
 export interface FinanceSlice {
   expenses: Expense[];
   sales: Sale[];
+  loadExpenses: () => Promise<void>;
+  loadSales: () => Promise<void>;
   addExpense: (data: any) => Promise<any>;
   deleteExpense: (id: string) => Promise<void>;
   clearExpensesByMonth: (month: string) => Promise<void>;
@@ -42,10 +48,14 @@ export interface FinanceSlice {
 
 export interface CoreSlice {
   isLoading: boolean;
+  isOnline: boolean;
   error: string | null;
+  pendingTickets: (Ticket & { lastError?: string })[];
+  socket: any | null;
   loadAllData: () => Promise<void>;
   initWebSockets: () => void;
   syncOfflineData: () => Promise<void>;
+  removePendingTicket: (id: string) => void;
 }
 
 export type AppState = TicketSlice & ClientSlice & InventorySlice & FinanceSlice & CoreSlice;

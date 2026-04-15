@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Taller MSA Cajeme",
-  "version": "1.0.0",
+  "productName": "Sistema MSA",
+  "version": "1.2.1",
   "identifier": "com.autoservice.cajeme",
   "build": {
     "frontendDist": "../dist",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Taller MSA Cajeme v1.0",
+        "title": "Sistema MSA v1.2.1",
         "width": 1280,
         "height": 800,
         "resizable": true,
@@ -21,7 +21,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' asset: https: data:; connect-src 'self' http://localhost:3001 http://127.0.0.1:3001 ws://localhost:3001 ws://127.0.0.1:3001"
+      "csp": "default-src 'self' blob:; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' asset: https: data: blob:; connect-src 'self' blob: http://localhost:3001 http://127.0.0.1:3001 ws://localhost:3001 ws://127.0.0.1:3001 https://github.com https://objects.githubusercontent.com https://api.github.com"
     }
   },
   "plugins": {
@@ -29,7 +29,7 @@
       "endpoints": [
         "https://github.com/saidalvarez/MSACAJEME/releases/latest/download/latest.json"
       ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZBRThGRTc4NjFGQ0UwQ0YKUldUUDRQeGhlUDdvK3FxY3RqdWJNNi9ycTlmazBiQ2xsUkdmQVNNNjV6aWhleVRHY0hVQkYwc2YK"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEUwMzJGMEU2MzhFMjFCNjAKUldSZ0crSTQ1dkF5NEdNeGcvb3FWR1hJbk9WY2lsYVdrRnp4eHljT2d5MFg3SUVqZU13QlRMRHEK"
     }
   },
   "bundle": {

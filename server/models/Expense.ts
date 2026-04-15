@@ -38,7 +38,9 @@ Expense.init({
 }, {
   sequelize,
   tableName: 'expenses',
-  timestamps: false
+  createdAt: 'created_at',
+  updatedAt: false,
+  paranoid: true
 });
 
 export default Expense;

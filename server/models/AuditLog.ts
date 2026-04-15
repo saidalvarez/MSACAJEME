@@ -2,7 +2,7 @@ import { DataTypes, Model } from 'sequelize';
 import sequelize from '../base_de_datos';
 
 class AuditLog extends Model {
-  declare id: number;
+  declare id: string;
   declare action: string;
   declare entity: string;
   declare entity_id: string;
@@ -12,9 +12,9 @@ class AuditLog extends Model {
 
 AuditLog.init({
   id: {
-    type: DataTypes.INTEGER,
+    type: DataTypes.STRING,
     primaryKey: true,
-    autoIncrement: true
+    defaultValue: DataTypes.UUIDV4
   },
   action: {
     type: DataTypes.STRING,

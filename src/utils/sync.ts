@@ -1,13 +1,14 @@
-import { getDb } from './db';
-import { api, isTauri } from './api';
+/**
+ * Offline sync queue — stores failed API operations for later retry.
+ * CLEANED: Removed legacy SQLite/getDb references that no longer apply.
+ */
+import { dataAdapter } from '../services/dataAdapter';
 
 interface PendingOperation {
   id: string;
-  sql?: string;
-  params?: any[];
-  method: 'SQL' | 'API';
-  apiPath?: string;
-  apiBody?: any;
+  method: 'API';
+  apiPath: string;
+  apiBody: any;
   timestamp: number;
 }
 
@@ -28,56 +29,83 @@ export const getSyncQueueLength = (): number => {
   return queue.length;
 };
 
+/**
+ * Processes the sync queue — retries all pending API operations.
+ * Returns true if the queue was fully cleared.
+ */
 export const syncData = async (): Promise<boolean> => {
   const queue: PendingOperation[] = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
   if (queue.length === 0) return true;
 
-  try {
-    // Process SQL operations (Tauri only legacy)
-    if (isTauri) {
-      const db = await getDb();
-      for (const op of queue.filter(o => o.method === 'SQL')) {
-        await db.execute(op.sql!, op.params || []);
-      }
-    }
+  const remaining: PendingOperation[] = [];
 
-    // Process API operations (ALWAYS)
-    for (const op of queue.filter(o => o.method === 'API')) {
+  for (const op of queue) {
+    try {
       if (op.apiPath && op.apiBody) {
-        await api.post(op.apiPath, op.apiBody);
+        // Use the dataAdapter's secure API (has token refresh built in)
+        const path = op.apiPath.startsWith('/') ? op.apiPath : `/${op.apiPath}`;
+        
+        // Determine method based on path patterns
+        if (path.includes('/clear') || path.includes('/archive')) {
+          await (dataAdapter as any).archiveTickets?.(op.apiBody.date) || 
+                fetch(`http://localhost:3001/api${path}`, {
+                  method: 'POST',
+                  headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${sessionStorage.getItem('msa_token') || ''}`
+                  },
+                  body: JSON.stringify(op.apiBody)
+                });
+        } else {
+          // Generic POST retry
+          await fetch(`http://localhost:3001/api${path}`, {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sessionStorage.getItem('msa_token') || ''}`
+            },
+            body: JSON.stringify(op.apiBody)
+          });
+        }
       }
+    } catch (error) {
+      console.warn(`⚠️ Sync retry failed for ${op.apiPath}:`, error);
+      remaining.push(op);
     }
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([]));
-    console.log("🔄 Sincronización completada con éxito");
-    return true;
-  } catch (error) {
-    console.error("❌ Error durante la sincronización:", error);
-    return false;
   }
+
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+  
+  if (remaining.length === 0) {
+    console.log("🔄 Sincronización completada con éxito");
+  } else {
+    console.warn(`⚠️ ${remaining.length} operaciones pendientes de sincronizar`);
+  }
+  
+  return remaining.length === 0;
 };
 
 /**
- * Ejecuta una consulta SQL. Si falla por conexión, la guarda en la cola de sincronización.
+ * Wraps an API POST call with offline resilience — if it fails,
+ * the operation is saved to the sync queue for later retry.
  */
-export const executeResilient = async (sql: string, params: any[] = []) => {
-  try {
-    const db = await getDb();
-    return await db.execute(sql, params);
-  } catch (error) {
-    console.warn("⚠️ Error de conexión SQL, guardando en cola:", error);
-    addToSyncQueue({ method: 'SQL', sql, params });
-    window.dispatchEvent(new CustomEvent('msa_sync_update'));
-    return null;
-  }
-};
-
 export const apiResilient = async (path: string, body: any) => {
   try {
-    return await api.post(path, body);
+    const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+    const token = sessionStorage.getItem('msa_token');
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) throw new Error(`API Error: ${response.statusText}`);
+    return await response.json();
   } catch (error) {
     console.warn("⚠️ Error de conexión API, guardando en cola:", error);
-    addToSyncQueue({ method: 'API', sql: '', params: [], apiPath: path, apiBody: body });
+    addToSyncQueue({ method: 'API', apiPath: path, apiBody: body });
     window.dispatchEvent(new CustomEvent('msa_sync_update'));
     return null;
   }

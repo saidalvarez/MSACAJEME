@@ -5,6 +5,24 @@ export const createFinanceSlice: AppStateCreator<Pick<import('../storeTypes').Fi
   expenses: [],
   sales: [],
 
+  loadExpenses: async () => {
+    try {
+      const res = await dataAdapter.getExpenses() as any;
+      set({ expenses: res.rows || res || [] });
+    } catch (error) {
+       console.error("Failed to load expenses:", error);
+    }
+  },
+
+  loadSales: async () => {
+    try {
+      const res = await dataAdapter.getSales() as any;
+      set({ sales: res.rows || res || [] });
+    } catch (error) {
+       console.error("Failed to load sales:", error);
+    }
+  },
+
   addExpense: async (data: any) => {
     const finalData = { 
       id: crypto.randomUUID(), 

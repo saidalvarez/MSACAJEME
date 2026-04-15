@@ -4,10 +4,14 @@ import jwt from 'jsonwebtoken';
 import { Usuario } from '../models';
 import sequelize from '../base_de_datos';
 import verifyToken, { AuthenticatedRequest } from '../middleware/auth';
+import logger from '../utils/logger';
 
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_fallback_only';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'dev_refresh_fallback';
+
+if (!process.env.JWT_SECRET) console.error('⚠️ [AUTH] JWT_SECRET no configurado en .env — usando clave insegura');
+if (!process.env.JWT_REFRESH_SECRET) console.error('⚠️ [AUTH] JWT_REFRESH_SECRET no configurado en .env — usando clave insegura');
 
 router.post('/login', async (req, res) => {
   try {
@@ -55,7 +59,7 @@ router.post('/login', async (req, res) => {
       force_password_change: user.force_password_change || false
     });
   } catch (error: any) {
-    console.error('[AUTH] Error en login:', error);
+    logger.error('[AUTH] Error en login:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
@@ -114,8 +118,79 @@ router.post('/change-password', verifyToken, async (req: AuthenticatedRequest, r
 
     res.json({ message: 'Contraseña actualizada exitosamente' });
   } catch (error: any) {
-    console.error('[AUTH] Error cambiando contraseña:', error);
+    logger.error('[AUTH] Error cambiando contraseña:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// ── User Management (admin only) ──
+import authorize from '../middleware/authorize';
+
+router.get('/users', verifyToken, authorize('admin'), async (_req, res) => {
+  try {
+    const users = await Usuario.findAll({
+      attributes: ['id', 'username', 'role', 'force_password_change', 'created_at']
+    });
+    res.json(users);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Error al obtener usuarios' });
+  }
+});
+
+router.post('/users', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    const { username, password, role } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
+    }
+    
+    const validRoles = ['admin', 'recepcion', 'mecanico'];
+    if (role && !validRoles.includes(role)) {
+      return res.status(400).json({ error: `Rol inválido. Roles válidos: ${validRoles.join(', ')}` });
+    }
+
+    const existing = await Usuario.findOne({ where: { username } });
+    if (existing) {
+      return res.status(409).json({ error: 'Ya existe un usuario con ese nombre' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    const user = await Usuario.create({
+      username,
+      password: hashedPassword,
+      role: role || 'mecanico',
+      force_password_change: true
+    });
+
+    res.status(201).json({ 
+      id: user.id, 
+      username: user.username, 
+      role: user.role,
+      message: 'Usuario creado exitosamente' 
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Error al crear usuario' });
+  }
+});
+
+router.delete('/users/:id', verifyToken, authorize('admin'), async (req, res) => {
+  try {
+    const user = await Usuario.findByPk(req.params.id as string);
+    if (!user) return res.status(404).json({ error: 'Usuario no encontrado' });
+    
+    // Prevent deleting the last admin
+    if (user.role === 'admin') {
+      const adminCount = await Usuario.count({ where: { role: 'admin' } });
+      if (adminCount <= 1) {
+        return res.status(400).json({ error: 'No puedes eliminar el último administrador' });
+      }
+    }
+
+    await user.destroy();
+    res.json({ message: 'Usuario eliminado' });
+  } catch (error: any) {
+    res.status(500).json({ error: 'Error al eliminar usuario' });
   }
 });
 

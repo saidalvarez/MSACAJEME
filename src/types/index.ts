@@ -23,6 +23,7 @@ export interface Ticket {
   notes?: string;
   discount: number;
   is_archived: boolean;
+  is_urgent?: boolean;
   date: string;
   service_photo?: string;
   items: TicketItem[];

@@ -10,16 +10,17 @@ class Ticket extends Model {
   declare client_email: string;
   declare vehicle: string;
   declare total: number;
-  declare status: string;
+  declare status: 'pending' | 'completed' | 'cancelled' | 'archived';
   declare format_type: string;
   declare notes: string;
   declare discount: number;
-  declare is_archived: boolean;
   declare date: Date;
+  declare archived_at: Date;
   declare service_photo: string;
   declare service_category: string;
   declare items?: any[];
   declare deletedAt: Date;
+  declare created_at: Date;
 }
 
 Ticket.init({
@@ -29,7 +30,8 @@ Ticket.init({
   },
   ticket_number: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: false,
+    unique: true
   },
   client_id: {
     type: DataTypes.STRING,
@@ -56,7 +58,7 @@ Ticket.init({
     allowNull: false
   },
   status: {
-    type: DataTypes.ENUM('pending', 'completed'),
+    type: DataTypes.ENUM('pending', 'completed', 'cancelled', 'archived'),
     defaultValue: 'pending'
   },
   format_type: {
@@ -71,13 +73,13 @@ Ticket.init({
     type: DataTypes.DECIMAL(15, 2),
     defaultValue: 0
   },
-  is_archived: {
-    type: DataTypes.BOOLEAN,
-    defaultValue: false
-  },
   date: {
     type: DataTypes.DATE,
     allowNull: false
+  },
+  archived_at: {
+    type: DataTypes.DATE,
+    allowNull: true
   },
   service_photo: {
     type: DataTypes.TEXT,
@@ -100,7 +102,8 @@ Ticket.init({
   updatedAt: false,
   paranoid: true,
   indexes: [
-    { fields: ['ticket_number'] },
+    { fields: ['ticket_number'], unique: true },
+    { fields: ['client_id'] },
     { fields: ['client_name'] },
     { fields: ['status'] }
   ]

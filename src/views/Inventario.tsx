@@ -25,12 +25,12 @@ export const Inventario = () => {
     brand: '', viscosity: '', type: '',
     date: new Date().toISOString().split('T')[0],
     initialStock: 1, currentStock: 1, purchaseNumber: '',
-    image: '', marketPrice: 0, purchasePrice: 0, category: 'Aceite', barcode: ''
+    image: '', marketPrice: 0, purchasePrice: 0, category: 'Aceite'
   });
 
   const [showAddCatalogForm, setShowAddCatalogForm] = useState(false);
   const [newCatalogItem, setNewCatalogItem] = useState<Omit<CatalogItem, 'id'>>({
-    brand: '', viscosity: '', type: '', image: '', marketPrice: 0, category: 'Aceite', barcode: ''
+    brand: '', viscosity: '', type: '', image: '', marketPrice: 0, category: 'Aceite'
   });
 
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
@@ -49,15 +49,13 @@ export const Inventario = () => {
   const filteredInventory = items.filter(item => 
     (!item.category || item.category === 'Aceite') &&
     ((item.brand || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (item.purchaseNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.barcode || '').toLowerCase().includes(searchTerm.toLowerCase()))
+    (item.purchaseNumber || '').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const filteredRefacciones = items.filter(item => 
     item.category === 'Refaccion' &&
     ((item.brand || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (item.purchaseNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.barcode || '').toLowerCase().includes(searchTerm.toLowerCase()))
+    (item.purchaseNumber || '').toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const displayItems = activeTab === 'inventory' ? filteredInventory : filteredRefacciones;
@@ -68,8 +66,7 @@ export const Inventario = () => {
 
   const filteredCatalog = catalogItems.filter(item => 
     (item.brand || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (item.viscosity || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (item.barcode || '').toLowerCase().includes(searchTerm.toLowerCase())
+    (item.viscosity || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleCatalogSelect = (id: string) => {
@@ -82,11 +79,10 @@ export const Inventario = () => {
             viscosity: catalogItem.viscosity,
             type: catalogItem.type,
             image: catalogItem.image || '',
-            marketPrice: catalogItem.marketPrice || 0,
-            barcode: catalogItem.barcode || ''
+            marketPrice: catalogItem.marketPrice || 0
         });
     } else {
-        setNewItem({ ...newItem, brand: '', viscosity: '', type: '', image: '', marketPrice: 0, barcode: '' });
+        setNewItem({ ...newItem, brand: '', viscosity: '', type: '', image: '', marketPrice: 0 });
     }
   };
 
@@ -113,7 +109,7 @@ export const Inventario = () => {
         brand: '', viscosity: '', type: '',
         date: new Date().toISOString().split('T')[0],
         initialStock: 1, currentStock: 1, purchaseNumber: '',
-        image: '', marketPrice: 0, purchasePrice: 0, category: activeTab === 'inventory' ? 'Aceite' : 'Refaccion', barcode: ''
+        image: '', marketPrice: 0, purchasePrice: 0, category: activeTab === 'inventory' ? 'Aceite' : 'Refaccion'
       });
       setSelectedCatalogId('');
       setShowAddForm(false);
@@ -133,7 +129,7 @@ export const Inventario = () => {
       marketPrice: Number(newCatalogItem.marketPrice)
     });
     toast.success('Producto agregado al catálogo base');
-    setNewCatalogItem({ brand: '', viscosity: '', type: '', image: '', marketPrice: 0, category: 'Aceite', barcode: '' });
+    setNewCatalogItem({ brand: '', viscosity: '', type: '', image: '', marketPrice: 0, category: 'Aceite' });
     setShowAddCatalogForm(false);
   };
 
@@ -299,7 +295,7 @@ export const Inventario = () => {
                     setShowAddForm(!showAddForm);
                     setShowAddCatalogForm(false);
                 } else if (activeTab === 'refacciones') {
-                    setNewItem({...newItem, category: 'Refaccion', viscosity: 'N/A', type: 'REFACCION'});
+                    setNewItem({...newItem, category: 'Refaccion', viscosity: '', type: 'REFACCION'});
                     setShowAddForm(!showAddForm);
                     setShowAddCatalogForm(false);
                 } else {
@@ -350,8 +346,8 @@ export const Inventario = () => {
           <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm relative group">
             <div className="relative z-10">
                <div className="flex items-center gap-1 mb-2">
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Costo Almacenado</p>
-                  <InfoTooltip content="Suma del valor estático actual congelado en el almacén basado en su costo de proveedor original." />
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Total Invertido</p>
+                  <InfoTooltip content="Lo que gastaste al proveedor por todo lo que aún tienes en stock. No incluye precio de venta." />
                </div>
               <h3 className="text-2xl font-black text-slate-800 tracking-tight">{formatCurrency(metrics.inventoryValue)}</h3>
             </div>
@@ -423,8 +419,8 @@ export const Inventario = () => {
                 <input type="text" required placeholder={activeTab === 'refacciones' ? "BALATAS, BATERÍA" : "SINTÉTICO"} className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-bold outline-none uppercase" value={newItem.type} onChange={e => setNewItem({...newItem, type: e.target.value})} />
               </div>
               <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Especificación (Ej. 5W-30 o N/A)</label>
-                <input type="text" placeholder="5W-30" className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-bold outline-none uppercase" value={newItem.viscosity} disabled={activeTab === 'refacciones' && newItem.viscosity === 'N/A'} onChange={e => setNewItem({...newItem, viscosity: e.target.value})} />
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">{activeTab === 'refacciones' ? 'Descripción (Modelo, Medida, etc.)' : 'Especificación (Ej. 5W-30)'}</label>
+                <input type="text" placeholder={activeTab === 'refacciones' ? 'CIVIC 2020, MEDIDA 12"...' : '5W-30'} className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-bold outline-none uppercase" value={newItem.viscosity} onChange={e => setNewItem({...newItem, viscosity: e.target.value})} />
               </div>
 
               <div>
@@ -437,12 +433,6 @@ export const Inventario = () => {
                 <input type="text" placeholder="F-1234" className="w-full h-12 bg-slate-50 border border-slate-200 rounded-xl px-4 text-sm font-bold outline-none uppercase tracking-widest" value={newItem.purchaseNumber} onChange={e => setNewItem({...newItem, purchaseNumber: e.target.value})} />
               </div>
               
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2"># Código de Barras (Opcional)</label>
-                <div className="relative">
-                  <input type="text" placeholder="Escanea o escribe" className="w-full h-12 bg-slate-50 border-2 border-slate-200 text-slate-800 rounded-xl px-4 text-sm font-black outline-none tracking-widest uppercase" value={newItem.barcode || ''} onChange={e => setNewItem({...newItem, barcode: e.target.value})} />
-                </div>
-              </div>
 
               <div>
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Foto / Visual</label>
@@ -459,7 +449,7 @@ export const Inventario = () => {
 
               <div className="md:col-span-3 grid grid-cols-2 gap-6 bg-slate-100 p-6 rounded-xl border border-slate-200">
                  <div>
-                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">¿Cuánto costó en Total? (Tu Costo)</label>
+                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-2">Precio de Taller (Tu Costo Unitario)</label>
                    <div className="relative">
                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                      <input type="number" min="0" step="0.01" className="w-full h-12 bg-white border border-slate-200 rounded-xl pl-10 pr-4 text-lg font-bold outline-none" value={newItem.purchasePrice || ''} onChange={e => setNewItem({...newItem, purchasePrice: parseFloat(e.target.value)})} />
@@ -536,12 +526,6 @@ export const Inventario = () => {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-500 font-bold">$</span>
                   <input type="number" required min="0" step="0.01" className="w-full h-12 bg-emerald-50 border-2 border-emerald-200 text-emerald-700 rounded-xl pl-10 pr-4 text-xl font-black outline-none" value={newCatalogItem.marketPrice || ''} onChange={e => setNewCatalogItem({...newCatalogItem, marketPrice: parseFloat(e.target.value)})} />
-                </div>
-              </div>
-              <div>
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2"># Código de Barras Global</label>
-                <div className="relative">
-                  <input type="text" placeholder="Escanear con pistola" className="w-full h-12 bg-slate-50 border-2 border-slate-200 text-slate-800 rounded-xl px-4 text-sm font-black outline-none tracking-widest uppercase" value={newCatalogItem.barcode || ''} onChange={e => setNewCatalogItem({...newCatalogItem, barcode: e.target.value})} />
                 </div>
               </div>
             </div>
@@ -726,13 +710,13 @@ export const Inventario = () => {
 
       {/* MODAL DE PREVISUALIZACIÓN DE IMAGEN */}
       {previewImage && createPortal(
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 lg:p-12 animate-in fade-in duration-300">
-           <div className="fixed inset-0 bg-slate-900/90" onClick={() => setPreviewImage(null)} />
-          <div className="relative w-full h-full flex flex-col items-center justify-center z-10" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setPreviewImage(null)} className="absolute top-0 right-0 md:-top-6 md:-right-6 bg-slate-800 text-white p-3 rounded-full shadow-xl">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 lg:p-12 animate-in fade-in duration-300" onClick={() => setPreviewImage(null)}>
+           <div className="fixed inset-0 bg-slate-900/90" />
+          <div className="relative z-10 max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setPreviewImage(null)} className="absolute -top-4 -right-4 bg-slate-800 text-white p-3 rounded-full shadow-xl z-20 hover:bg-slate-700 transition-colors">
               <X size={24} />
             </button>
-            <img src={previewImage} alt="Ficha Técnica" className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl" />
+            <img src={previewImage} alt="Ficha Técnica" className="max-w-full max-h-[80vh] object-contain rounded-2xl shadow-2xl" />
           </div>
         </div>,
         document.body

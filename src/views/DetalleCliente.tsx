@@ -98,18 +98,29 @@ export const DetalleCliente = () => {
       const doc = <QuotePDF quote={ticket} formatType={format} />;
       const blob = await pdf(doc).toBlob();
       
-      const url = URL.createObjectURL(blob);
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = formatPdfFileName(ticket.client_name || ticket.clientName, 'Cotizacion', ticket.ticket_number || ticket.ticketNumber || 0);
-      
-      window.document.body.appendChild(link);
-      link.click();
-      
-      setTimeout(() => {
-        window.document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, 100);
+      const filename = formatPdfFileName(ticket.client_name || ticket.clientName, 'Cotizacion', ticket.ticket_number || ticket.ticketNumber || 0);
+
+      try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const buffer = await blob.arrayBuffer();
+          const bytes = Array.from(new Uint8Array(buffer));
+          const savedPath = await invoke('save_pdf_to_desktop', { bytes, filename });
+          console.log(`Guardado exitoso en Desktop: ${savedPath}`);
+      } catch (e) {
+          console.error("Fallo al guardar nativamente, usando fallback", e);
+          const url = URL.createObjectURL(blob);
+          const link = window.document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          
+          window.document.body.appendChild(link);
+          link.click();
+          
+          setTimeout(() => {
+            window.document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }, 100);
+      }
 
       toast.success("PDF Descargado", { id: 'pdf-client' });
     } catch (error: any) {

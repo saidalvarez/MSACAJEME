@@ -2,13 +2,14 @@ import express from 'express';
 import { Expense } from '../models';
 import verifyToken from '../middleware/auth';
 import { Op } from 'sequelize';
+import logger from '../utils/logger';
 
 const router = express.Router();
 router.use(verifyToken);
 
 router.get('/', async (req, res) => {
   try {
-    console.log('GET /api/expenses');
+    logger.info('GET /api/expenses');
     const expenses = await Expense.findAll({
       where: {
         [Op.or]: [
@@ -20,19 +21,19 @@ router.get('/', async (req, res) => {
     });
     res.json(expenses);
   } catch (error) {
-    console.error('Error GET /api/expenses:', error);
+    logger.error('Error GET /api/expenses:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
 router.post('/', async (req, res) => {
   try {
-    console.log('POST /api/expenses - Body:', req.body);
+    logger.info('POST /api/expenses - Body:', req.body);
     const expense = await Expense.create(req.body);
-    console.log('Expense created:', expense.id);
+    logger.info(`Expense created: ${expense.id}`);
     res.status(201).json(expense);
   } catch (error) {
-    console.error('Error POST /api/expenses:', error);
+    logger.error('Error POST /api/expenses:', error);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });

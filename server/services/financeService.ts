@@ -1,4 +1,4 @@
-import { Ticket, HistorialTicket, Expense, Sale } from '../models';
+import { Ticket, Expense, Sale } from '../models';
 import { Op } from 'sequelize';
 import sequelize from '../base_de_datos';
 
@@ -10,22 +10,26 @@ export class FinanceService {
 
     const dateFilter = { [Op.between]: [startOfMonth, endOfMonth] };
 
-    // Get Tickets & Historial Tickets
-    const activeTickets = await Ticket.findAll({ where: { status: 'completed', date: dateFilter } });
-    const historialTickets = await HistorialTicket.findAll({ where: { status: 'completed', date: dateFilter } });
+    // Get Tickets (Completed + Archived) - both count as revenue
+    const completedTickets = await Ticket.findAll({ 
+      where: { status: { [Op.in]: ['completed', 'archived'] }, date: dateFilter },
+      raw: true
+    });
     
     // Get Expenses
     const expenses = await Expense.findAll({
-      where: { date: dateFilter, is_archived: { [Op.or]: [false, null] } }
+      where: { date: dateFilter, is_archived: { [Op.or]: [false, null] } },
+      raw: true
     });
 
     // Get Sales
     const sales = await Sale.findAll({
-      where: { date: dateFilter, is_archived: { [Op.or]: [false, null] } }
+      where: { date: dateFilter, is_archived: { [Op.or]: [false, null] } },
+      raw: true
     });
 
     return {
-      tickets: [...activeTickets, ...historialTickets],
+      tickets: completedTickets,
       expenses,
       sales
     };

@@ -191,7 +191,11 @@ export const dataAdapter = {
   clearSalesByMonth: (month: string) => secureApi.post('/sales/clear', { month }),
 
   // TICKETS / SERVICIOS ACTIVOS
-  getTickets: (): Promise<{ rows: Ticket[], count: number }> => secureApi.get('/tickets'),
+  getTickets: (limit = 20, offset = 0, search = ''): Promise<{ rows: Ticket[], count: number }> => {
+    const params = new URLSearchParams({ limit: limit.toString(), offset: offset.toString() });
+    if (search) params.append('search', search);
+    return secureApi.get(`/tickets?${params.toString()}`);
+  },
   createTicket: (data: any, silent = false): Promise<Ticket> => secureApi.post('/tickets', data, silent),
   updateTicket: (id: string, data: any, silent = false): Promise<Ticket> => secureApi.put(`/tickets/${id}`, data, silent),
   deleteTicket: (id: string) => secureApi.delete(`/tickets/${id}`),
@@ -210,8 +214,10 @@ export const dataAdapter = {
   deleteHistorialTicket: (id: string) => secureApi.delete(`/historial/${id}`),
   clearHistorial: () => secureApi.delete('/historial'),
 
-  // BACKUP (real pg_dump)
-  createBackup: () => secureApi.post('/backup', {}),
+  // RESPALDOS Y SEGURIDAD
+  exportDatabase: () => secureApi.get('/backup/export'),
+  importDatabase: (data: any) => secureApi.post('/backup/import', data),
+  createCloudBackup: () => secureApi.post('/backup/cloud', {}),
 
   // PAPELERA DE RECICLAJE (SOFT DELETES)
   getTrash: () => secureApi.get('/trash'),
@@ -220,7 +226,12 @@ export const dataAdapter = {
 
   // FINANCIAL AGGREGATIONS
   getFinanceSummary: (monthYYYYMM: string) => secureApi.get(`/finance/summary?month=${monthYYYYMM}`),
-  getFinanceChart: () => secureApi.get('/finance/chart')
+  getFinanceChart: () => secureApi.get('/finance/chart'),
+
+  // ADMIN MONITORING
+  getSystemStats: () => secureApi.get('/admin/stats'),
+  getLogs: () => secureApi.get('/admin/logs'),
+  clearLogs: () => secureApi.post('/admin/logs/clear', {})
 };
 
 

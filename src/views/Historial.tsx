@@ -57,18 +57,28 @@ const HistoryCard = memo(({ ticket, onDelete }: { ticket: HistoryTicket, onDelet
             const blob = await pdf(document).toBlob();
             console.log("PDF generado en bitácora:", blob.size, "bytes");
             
-            const url = URL.createObjectURL(blob);
-            const a = window.document.createElement('a');
-            a.href = url;
-            a.download = formatPdfFileName(ticket.client_name || ticket.clientName, 'Corte', ticket.ticket_number || ticket.ticketNumber || 0);
-            
-            window.document.body.appendChild(a);
-            a.click();
-            
-            setTimeout(() => {
-                window.document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }, 100);
+            const filename = formatPdfFileName(ticket.client_name || ticket.clientName, 'Corte', ticket.ticket_number || ticket.ticketNumber || 0);
+
+            try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                const buffer = await blob.arrayBuffer();
+                const bytes = Array.from(new Uint8Array(buffer));
+                const savedPath = await invoke('save_pdf_to_desktop', { bytes, filename });
+                console.log(`Guardado exitoso en Desktop: ${savedPath}`);
+            } catch (e) {
+                console.error("Fallo al guardar nativamente, usando fallback", e);
+                const url = URL.createObjectURL(blob);
+                const a = window.document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                window.document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    window.document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            }
             
             toast.success("Documento Descargado", { id: 'pdf-historial' });
         } catch (error: unknown) {
@@ -98,14 +108,14 @@ const HistoryCard = memo(({ ticket, onDelete }: { ticket: HistoryTicket, onDelet
                 </div>
 
                 <h4 className="font-black text-lg text-slate-900 uppercase tracking-tight flex items-center gap-2">
-                    {ticket.client_name || ticket.clientName}
-                    <span className={`text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold border ${ticket.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : ticket.status === 'cancelled' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                       {ticket.status === 'completed' ? 'Completado' : ticket.status === 'cancelled' ? 'Cancelado' : 'Pendiente'}
+                    {ticket.client_name}
+                    <span className={`text-[9px] px-2 py-0.5 rounded uppercase tracking-widest font-bold border ${ticket.status === 'completed' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : ticket.status === 'archived' ? 'bg-slate-50 text-slate-600 border-slate-200' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                       {ticket.status === 'completed' ? 'Completado' : ticket.status === 'archived' ? 'Archivado' : 'Pendiente'}
                     </span>
                 </h4>
 
                 <div className="text-xs font-medium text-slate-500 line-clamp-1 mt-1">
-                    {ticket.items?.map((i: {name: string}) => i.name).join(' • ')}
+                    {ticket.items?.map((i: any) => i.name).join(' • ')}
                 </div>
             </div>
 

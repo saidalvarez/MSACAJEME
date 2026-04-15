@@ -20,7 +20,7 @@ const seedAdmin = async () => {
           role: 'admin',
           force_password_change: true
         });
-        console.log(`[SEED] Usuario "${username}" creado. Contraseña temporal: ${defaultPassword}`);
+        console.log(`[SEED] Usuario "${username}" creado con contraseña temporal. Cambiar al primer inicio.`);
       } else {
         console.log(`[SEED] Usuario "${username}" ya existe — no se modificó.`);
       }

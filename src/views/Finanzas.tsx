@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { formatCurrency } from '../utils/format';
 import { FinancesPDF } from '../components/FinancesPDF';
 import { DangerModal } from '../components/DangerModal';
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import { pdf } from '@react-pdf/renderer';
 import { useStore } from '../store/useStore';
 import { dataAdapter } from '../services/dataAdapter';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
@@ -19,10 +19,40 @@ const safeDateStr = (dateVal: any) => {
 };
 
 const DownloadReportButton = memo(({ reportMonth, reportTickets, reportExpenses, reportSales }: { reportMonth: string, reportTickets: any[], reportExpenses: any[], reportSales: any[] }) => {
+  const [isGenerating, setIsGenerating] = useState(false);
   const monthLabel = useMemo(() => {
     const date = new Date(`${reportMonth}-01T12:00:00`);
     return date.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase());
   }, [reportMonth]);
+
+  const handleDownload = async () => {
+    try {
+      setIsGenerating(true);
+      toast.loading('Generando reporte...', { id: 'finance-pdf' });
+      const doc = <FinancesPDF monthYear={reportMonth} tickets={reportTickets} expenses={reportExpenses} sales={reportSales} />;
+      const blob = await pdf(doc).toBlob();
+      const filename = `Reporte_Financiero_MSA_${reportMonth}.pdf`;
+
+      try {
+        const { invoke } = await import('@tauri-apps/api/core');
+        const buffer = await blob.arrayBuffer();
+        const bytes = Array.from(new Uint8Array(buffer));
+        await invoke('save_pdf_to_desktop', { bytes, filename });
+        toast.success('Reporte guardado en COTIZACIONES', { id: 'finance-pdf', duration: 4000 });
+      } catch (e) {
+        const url = URL.createObjectURL(blob);
+        const a = window.document.createElement('a');
+        a.href = url; a.download = filename; a.click();
+        URL.revokeObjectURL(url);
+        toast.success('Reporte descargado', { id: 'finance-pdf' });
+      }
+    } catch (err) {
+      console.error('Finance PDF error:', err);
+      toast.error('Error al generar reporte', { id: 'finance-pdf' });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   return (
     <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm relative overflow-hidden group">
@@ -31,18 +61,14 @@ const DownloadReportButton = memo(({ reportMonth, reportTickets, reportExpenses,
       </h2>
       <p className="text-sm font-bold text-slate-600 mb-8 max-w-[200px] leading-normal uppercase text-[10px]">Exporta el resumen de {monthLabel} en PDF profesional.</p>
       
-      <PDFDownloadLink
-        document={<FinancesPDF monthYear={reportMonth} tickets={reportTickets} expenses={reportExpenses} sales={reportSales} />}
-        fileName={`Reporte_Financiero_MSA_${reportMonth}.pdf`}
-        className="w-full h-12 bg-primary-600 hover:bg-primary-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 flex justify-center items-center gap-3"
+      <button
+        onClick={handleDownload}
+        disabled={isGenerating}
+        className="w-full h-12 bg-primary-600 hover:bg-primary-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all shadow-md active:scale-95 flex justify-center items-center gap-3 disabled:opacity-50"
       >
-        {({ loading }) => (
-          <>
-            <Download size={18} />
-            {loading ? 'Generando...' : 'Descargar PDF'}
-          </>
-        )}
-      </PDFDownloadLink>
+        {isGenerating ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
+        {isGenerating ? 'Generando...' : 'Descargar PDF'}
+      </button>
     </div>
   );
 });
@@ -158,15 +184,15 @@ export const Finanzas = () => {
     fetchFinanceData();
   }, [clearExpensesByMonth, clearSalesByMonth, reportMonth, fetchFinanceData]);
 
-  const handleExportBackup = useCallback(async () => {
+  const handleExportBackup = async () => {
     try {
-      toast.loading('Generando respaldo de base de datos...', { id: 'backup' });
-      const result = await dataAdapter.createBackup() as any;
-      toast.success(`Respaldo generado: ${result.filename}`, { id: 'backup', duration: 5000 });
+      toast.loading('Generando respaldo...', { id: 'backup' });
+      await dataAdapter.exportDatabase();
+      toast.success('Respaldo generado con éxito', { id: 'backup' });
     } catch (error) {
       toast.error('Error al generar respaldo. Verifica que pg_dump esté instalado.', { id: 'backup' });
     }
-  }, []);
+  };
 
   const handleImportBackup = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

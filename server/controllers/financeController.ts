@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { FinanceService } from '../services/financeService';
+import logger from '../utils/logger';
 
 export class FinanceController {
   static async getMonthlySummary(req: Request, res: Response) {
@@ -34,7 +35,7 @@ export class FinanceController {
         expenses: summary.expenses
       });
     } catch (error: any) {
-      console.error('[FINANCE] Error:', error);
+      logger.error('[FINANCE] Error:', error);
       res.status(500).json({ error: 'Error calculating monthly summary' });
     }
   }
@@ -44,7 +45,7 @@ export class FinanceController {
       const chartData = await FinanceService.getSixMonthChart();
       res.json(chartData);
     } catch (error: any) {
-      console.error('[FINANCE] Error Chart:', error);
+      logger.error('[FINANCE] Error Chart:', error);
       res.status(500).json({ error: 'Error calculating historical chart' });
     }
   }
