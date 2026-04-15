@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "build:sidecar": "cd server && npm run build && npx pkg . --output ../src-tauri/bin/msa-server.exe",
     "build:total": "npm run build:sidecar && npm run build && npx tauri build",
+    "tauri": "tauri",
     "lint": "eslint .",
     "preview": "vite preview"
   },
