@@ -129,7 +129,7 @@ export const EditarTicket = () => {
   const grandTotal = baseTotal + iva - retencion;
 
   const addItem = (name: string = '') => {
-    setItems([...items, { id: Date.now(), name, price: 0, quantity: 1 }]);
+    setItems([...items, { id: Date.now(), name, price: 0, purchase_price: 0, quantity: 1 }]);
   };
   
   const removeItem = (itemId: number) => {
@@ -407,11 +407,10 @@ export const EditarTicket = () => {
                                  </label>
                              )}
                              <input type="file" id={`edit-file-${item.id}`} accept="image/*" className="hidden" onChange={(e) => handleImageUpload(item.id, e)} />
-                         </div>
-
-                         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-6 items-end w-full">
-                            <div className="md:col-span-6">
-                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block px-1">
+                            <div className="flex-1 w-full flex flex-col gap-3 justify-center">
+                            {/* Fila 1: Descripción */}
+                            <div className="w-full">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block px-1">
                                     Descripción del Concepto {errors.includes(`item_name_${item.id}`) && <span className="text-danger-500 font-bold">*</span>}
                                 </label>
                                 <input 
@@ -430,34 +429,66 @@ export const EditarTicket = () => {
                                    }} 
                                 />
                             </div>
-                            <div className="md:col-span-3">
-                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block px-1">Precio Unitario</label>
-                                <div className="relative">
-                                    <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm ${item.inventory_id ? 'text-success-600' : 'text-slate-400'}`}>$</span>
-                                    <input 
-                                       type="number" 
-                                       readOnly={!!item.inventory_id}
-                                       className={`w-full h-11 border rounded-lg pl-9 pr-4 text-sm font-bold outline-none transition-all ${
-                                         item.inventory_id 
-                                           ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed' 
-                                           : 'bg-white border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary-500/10'
-                                       } ${errors.includes(`item_price_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
-                                        value={item.price ?? ''} 
-                                        onChange={(e) => {
-                                            if (item.inventory_id) return;
-                                            const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
-                                            updateItem(item.id, 'price', isNaN(val) ? 0 : val);
-                                            if (errors.includes(`item_price_${item.id}`)) setErrors(errors.filter(err => err !== `item_price_${item.id}`));
-                                        }} 
-                                    />
+
+                            {/* Fila 2: Taller / Público / Cantidad / Profit */}
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                                <div className="md:col-span-3">
+                                    <label className="text-[10px] font-bold text-slate-400 bg-slate-50 border border-slate-100 rounded px-1.5 py-0.5 uppercase tracking-widest mb-1.5 inline-block mx-1">
+                                        Precio Taller (Costo)
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm text-slate-400">$</span>
+                                        <input 
+                                           type="number" 
+                                           readOnly={!!item.inventory_id}
+                                           className={`w-full h-11 border rounded-lg pl-8 pr-4 text-sm font-bold outline-none transition-all ${
+                                             item.inventory_id 
+                                               ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed' 
+                                               : 'bg-white border-slate-200 text-slate-900 focus:ring-2 focus:ring-emerald-500/10'
+                                           }`}
+                                            value={item.purchase_price || ''} 
+                                            onChange={(e) => {
+                                                if (item.inventory_id) return;
+                                                const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                updateItem(item.id, 'purchase_price', isNaN(val) ? 0 : val);
+                                             }} 
+                                        />
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block px-1">Cantidad</label>
-                                <input type="number" className="w-full h-11 bg-white border border-slate-200 rounded-lg px-4 text-sm font-bold outline-none" value={item.quantity} onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value))} />
-                            </div>
-                            <div className="md:col-span-1 flex justify-center">
-                                <button onClick={() => removeItem(item.id)} className="w-11 h-11 flex items-center justify-center text-slate-300 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-all border border-slate-200"><Trash2 size={18} /></button>
+                                <div className="md:col-span-3">
+                                    <label className="text-[10px] font-bold uppercase tracking-widest text-primary-600 mb-1.5 block px-1">Precio Venta</label>
+                                    <div className="relative">
+                                        <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm text-primary-400`}>$</span>
+                                        <input 
+                                           type="number" 
+                                           readOnly={!!item.inventory_id}
+                                           className={`w-full h-11 border rounded-lg pl-8 pr-4 text-sm font-bold outline-none transition-all ${
+                                             item.inventory_id 
+                                               ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed' 
+                                               : 'bg-white border-primary-200 text-primary-900 focus:ring-2 focus:ring-primary-500/10'
+                                           } ${errors.includes(`item_price_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
+                                            value={item.price ?? ''} 
+                                            onChange={(e) => {
+                                                if (item.inventory_id) return;
+                                                const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                updateItem(item.id, 'price', isNaN(val) ? 0 : val);
+                                                if (errors.includes(`item_price_${item.id}`)) setErrors(errors.filter(err => err !== `item_price_${item.id}`));
+                                            }} 
+                                        />
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1.5 block px-1">Cantidad</label>
+                                    <input type="number" className="w-full h-11 bg-white border border-slate-200 rounded-lg px-2 text-center text-sm font-bold outline-none focus:ring-2 focus:ring-primary-500/10" value={item.quantity} onChange={(e) => updateItem(item.id, 'quantity', parseFloat(e.target.value))} />
+                                </div>
+                                <div className="md:col-span-4 flex items-end gap-2">
+                                    <div className="flex-1 h-11 flex flex-col justify-center bg-emerald-50 text-emerald-700 rounded-lg px-3 border border-emerald-200 relative overflow-hidden group/profit">
+                                        <div className="absolute top-0 right-0 w-8 h-full bg-emerald-500/10 -skew-x-12 translate-x-4 group-hover/profit:translate-x-0 transition-transform"/>
+                                        <span className="text-[8px] font-black uppercase tracking-widest leading-none mb-0.5 text-emerald-600/70">Utilidad Neta</span>
+                                        <span className="text-sm font-black leading-none">+{formatCurrency(((item.price || 0) - (item.purchase_price || 0)) * (item.quantity || 1))}</span>
+                                    </div>
+                                    <button onClick={() => removeItem(item.id)} className="w-11 h-11 flex items-center justify-center shrink-0 text-slate-300 hover:text-danger-600 hover:bg-danger-50 rounded-lg transition-all border border-transparent hover:border-danger-100"><Trash2 size={18} /></button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -511,10 +542,14 @@ export const EditarTicket = () => {
                <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-lg relative group">
                   <div className="space-y-6 relative z-10">
                      <div className="flex justify-between items-center px-2">
-                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Subtotal de Conceptos</span>
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Subtotal de Conceptos (Público)</span>
                          <span className="font-bold text-xl text-slate-400">{formatCurrency(subtotal)}</span>
                      </div>
-                     <div className="flex justify-between items-center p-5 bg-slate-50 border border-slate-100 rounded-xl">
+                     <div className="flex justify-between items-center px-2 mt-2">
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1.5"><TrendingUp size={12} strokeWidth={3} /> Ganancia Total Taller</span>
+                         <span className="font-bold text-xl text-emerald-600">+{formatCurrency(items.reduce((sum, item) => sum + (((item.price || 0) - (item.purchase_price || 0)) * (item.quantity || 1)), 0))}</span>
+                     </div>
+                     <div className="flex justify-between items-center p-5 bg-slate-50 border border-slate-100 rounded-xl mt-4">
                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Descuento Aplicado</span>
                          <div className="flex items-center gap-4">
                              <span className="text-xs font-bold text-danger-600">-{formatCurrency(discountAmount)}</span>

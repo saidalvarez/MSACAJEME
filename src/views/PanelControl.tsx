@@ -10,6 +10,7 @@ import { pdf } from '@react-pdf/renderer';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatPdfFileName } from '../utils/format';
 import { QuotePDF } from '../components/QuotePDF';
+import { ProfitPDF } from '../components/ProfitPDF';
 import { DangerModal } from '../components/DangerModal';
 import { InfoModal } from '../components/InfoModal';
 import { EmailModal } from '../components/EmailModal';
@@ -31,6 +32,7 @@ const WhatsAppIcon = ({ size = 24, className = "" }) => (
 const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom, removePendingTicket, isToday = true }: { ticket: any, handleDelete: (id: string) => void, handleToggleStatus: (id: string, currentStatus: string) => void, handleZoom: (img: string) => void, removePendingTicket: (id: string) => void, isToday?: boolean }) => {
     const format = ticket.format_type || ticket.formatType || 'payment_info';
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isGeneratingProfit, setIsGeneratingProfit] = useState(false);
     const [showEmailModal, setShowEmailModal] = useState(false);
 
     const handleWhatsApp = useCallback(async () => {
@@ -124,6 +126,36 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
             setIsGenerating(false);
         }
     }, [ticket, format]);
+
+    const handleDownloadProfit = useCallback(async () => {
+        try {
+            setIsGeneratingProfit(true);
+            const document = <ProfitPDF quote={ticket} formatType={format as any} />;
+            const blob = await pdf(document).toBlob();
+            const filename = formatPdfFileName(ticket.client_name || ticket.clientName, 'Utilidades', ticket.ticket_number || ticket.ticketNumber || 0);
+            
+            try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                const buffer = await blob.arrayBuffer();
+                const bytes = Array.from(new Uint8Array(buffer));
+                const savedPath = await invoke('save_pdf_to_desktop', { bytes, filename, folder: 'UTILIDADES' });
+                toast.success(`Reporte creado: ${savedPath}`, { duration: 5000, style: { border: '1px solid #10b981' } });
+            } catch (e) {
+                console.error("Fallo al guardar nativamente la utilidad", e);
+                const url = URL.createObjectURL(blob);
+                const a = window.document.createElement('a');
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+        } catch (error) {
+            console.error("Error generating Profit PDF:", error);
+            toast.error("Error al intentar generar el reporte de utilidades.");
+        } finally {
+            setIsGeneratingProfit(false);
+        }
+    }, [ticket, format]);
+
 
     const formatLabels: Record<string, string> = {
         'payment_info': 'FISCAL (IVA+RET)',
@@ -268,8 +300,11 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                     </div>
 
                     <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden divide-x divide-slate-100">
-                        <button onClick={handleDownload} disabled={isGenerating} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-slate-500 hover:bg-slate-50 hover:text-primary-600 transition-colors bg-slate-50/50" title="Descargar PDF">
-                            {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
+                        <button onClick={handleDownload} disabled={isGenerating} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-slate-500 hover:bg-slate-50 hover:text-primary-600 transition-colors bg-slate-50/50" title="Descargar Cotización (Público)">
+                            {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={14} />}
+                        </button>
+                        <button onClick={handleDownloadProfit} disabled={isGeneratingProfit} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 transition-colors bg-slate-50/50" title="Descargar Utilidad Taller">
+                            {isGeneratingProfit ? <RefreshCw size={14} className="animate-spin text-emerald-600" /> : <DollarSign size={14} className="text-emerald-600" />}
                         </button>
                         <button onClick={handleWhatsApp} className="flex-1 px-3 py-2 text-slate-500 hover:bg-[#25D366]/10 hover:text-[#25D366] transition-colors flex justify-center items-center bg-slate-50/50" title="WhatsApp Business">
                             <WhatsAppIcon size={14} />

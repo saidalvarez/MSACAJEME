@@ -1,12 +1,13 @@
 import { useState, memo } from 'react';
 import { 
   FileText, RefreshCw,
-  Download, Clock, Search, Trash2
+  Download, Clock, Search, Trash2, DollarSign
 } from 'lucide-react';
 import { pdf } from '@react-pdf/renderer';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatPdfFileName } from '../utils/format';
 import { QuotePDF } from '../components/QuotePDF';
+import { ProfitPDF } from '../components/ProfitPDF';
 import { sendWhatsAppNotification, formatTicketMessage } from '../utils/notifications';
 import { DangerModal } from '../components/DangerModal';
 import { dataAdapter } from '../services/dataAdapter';
@@ -40,6 +41,7 @@ export interface HistoryTicket {
 
 const HistoryCard = memo(({ ticket, onDelete }: { ticket: HistoryTicket, onDelete: (id: string) => void }) => {
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isGeneratingProfit, setIsGeneratingProfit] = useState(false);
 
     const handleWhatsApp = async () => {
         const message = formatTicketMessage((ticket.client_name || ticket.clientName) as string, (ticket.ticket_number || ticket.ticketNumber) as number, ticket.status, ticket.total);
@@ -87,6 +89,48 @@ const HistoryCard = memo(({ ticket, onDelete }: { ticket: HistoryTicket, onDelet
             toast.error(`Error al generar documento: ${err.message || 'Error de renderizado'}`, { id: 'pdf-historial' });
         } finally {
             setIsGenerating(false);
+    };
+
+    const handleDownloadProfit = async () => {
+        try {
+            console.log("Historial: Iniciando descarga de Utilidad para ticket #", ticket.ticket_number || ticket.ticketNumber);
+            setIsGeneratingProfit(true);
+            toast.loading("Generando tabla de utilidad...", { id: 'pdf-historial-profit' });
+            
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const document = <ProfitPDF quote={ticket as any} formatType={(ticket.format_type || ticket.formatType || 'payment_info') as any} />;
+            const blob = await pdf(document).toBlob();
+            
+            const filename = formatPdfFileName(ticket.client_name || ticket.clientName, 'Utilidades', ticket.ticket_number || ticket.ticketNumber || 0);
+
+            try {
+                const { invoke } = await import('@tauri-apps/api/core');
+                const buffer = await blob.arrayBuffer();
+                const bytes = Array.from(new Uint8Array(buffer));
+                const savedPath = await invoke('save_pdf_to_desktop', { bytes, filename, folder: 'UTILIDADES' });
+                console.log(`Guardado exitoso en Desktop: ${savedPath}`);
+            } catch (e) {
+                console.error("Fallo al guardar nativamente, usando fallback", e);
+                const url = URL.createObjectURL(blob);
+                const a = window.document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                window.document.body.appendChild(a);
+                a.click();
+                
+                setTimeout(() => {
+                    window.document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }, 100);
+            }
+            
+            toast.success("Documento Descargado", { id: 'pdf-historial-profit' });
+        } catch (error: unknown) {
+            console.error("Historial PDF Profit Error:", error);
+            const err = error as Error;
+            toast.error(`Error al generar documento: ${err.message || 'Error de renderizado'}`, { id: 'pdf-historial-profit' });
+        } finally {
+            setIsGeneratingProfit(false);
         }
     };
 
@@ -128,8 +172,11 @@ const HistoryCard = memo(({ ticket, onDelete }: { ticket: HistoryTicket, onDelet
                 </div>
 
                 <div className="flex items-center gap-2">
-                     <button onClick={handleDownload} disabled={isGenerating} title="Descargar PDF" className="px-3 py-2 flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-all active:scale-95 text-[10px] font-bold uppercase tracking-widest shadow-sm">
-                        {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />} PDF
+                     <button onClick={handleDownload} disabled={isGenerating} title="Descargar PDF (Público)" className="px-3 py-2 flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-all active:scale-95 text-[10px] font-bold uppercase tracking-widest shadow-sm">
+                        {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={14} />} PDF
+                     </button>
+                     <button onClick={handleDownloadProfit} disabled={isGeneratingProfit} title="Descargar PDF Utilidad" className="px-3 py-2 flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-all active:scale-95 text-[10px] font-bold uppercase tracking-widest shadow-sm">
+                        {isGeneratingProfit ? <RefreshCw size={14} className="animate-spin" /> : <DollarSign size={14} />} UT (T)
                      </button>
                      <button onClick={handleWhatsApp} title="Enviar WhatsApp" className="w-9 h-9 flex items-center justify-center bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 rounded-lg transition-all active:scale-95 shadow-sm">
                         <WhatsAppIcon size={16} />

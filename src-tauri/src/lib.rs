@@ -42,9 +42,12 @@ fn get_db_config(handle: tauri::AppHandle) -> Result<DbConfig, String> {
 }
 
 #[tauri::command]
-fn save_pdf_to_desktop(handle: tauri::AppHandle, bytes: Vec<u8>, filename: String) -> Result<String, String> {
+fn save_pdf_to_desktop(handle: tauri::AppHandle, bytes: Vec<u8>, filename: String, folder: Option<String>) -> Result<String, String> {
     let desktop_dir = handle.path().desktop_dir().map_err(|e| e.to_string())?;
-    let target_dir = desktop_dir.join("COTIZACIONES");
+    
+    // Predeterminado a COTIZACIONES si no se especifica carpeta
+    let folder_name = folder.unwrap_or_else(|| "COTIZACIONES".to_string());
+    let target_dir = desktop_dir.join(&folder_name);
     
     std::fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
     

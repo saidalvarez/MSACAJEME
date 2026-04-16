@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { 
   ArrowLeft, CheckCircle, PackageOpen, 
-  ChevronDown, ChevronRight, Download, Award, Crown, Star, Shield,
+  ChevronDown, ChevronRight, Download, Award, Crown, Star, Shield, DollarSign,
   Mail,
   Phone,
   RefreshCw, TrendingUp, AlertTriangle, CheckCircle2, Clock
@@ -11,6 +11,7 @@ import { useStore } from '../store/useStore';
 import { formatCurrency, formatPdfFileName } from '../utils/format';
 import { pdf } from '@react-pdf/renderer';
 import { QuotePDF } from '../components/QuotePDF';
+import { ProfitPDF } from '../components/ProfitPDF';
 import { dataAdapter } from '../services/dataAdapter';
 import toast from 'react-hot-toast';
 import type { Ticket } from '../types';
@@ -24,6 +25,7 @@ export const DetalleCliente = () => {
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
   const [expandedSaleId, setExpandedSaleId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingProfit, setIsGeneratingProfit] = useState(false);
 
   const client = clients.find(c => c.id === id);
   const [historialTickets, setHistorialTickets] = useState<any[]>([]);
@@ -137,6 +139,49 @@ export const DetalleCliente = () => {
       toast.error(`Error al generar PDF: ${error.message || 'Error de renderizado'}`, { id: 'pdf-client' });
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleDownloadProfitTicket = async (ticket: Ticket) => {
+    try {
+      console.log("DetalleCliente: Generando Profit PDF para ticket:", ticket.id);
+      setIsGeneratingProfit(true);
+      toast.loading("Calculando y generando documento...", { id: 'pdf-client-profit' });
+
+      const format = (ticket.format_type || ticket.formatType || 'payment_info') as any;
+      const doc = <ProfitPDF quote={ticket} formatType={format} />;
+      const blob = await pdf(doc).toBlob();
+      
+      const filename = formatPdfFileName(ticket.client_name || ticket.clientName, 'Utilidades', ticket.ticket_number || ticket.ticketNumber || 0);
+
+      try {
+          const { invoke } = await import('@tauri-apps/api/core');
+          const buffer = await blob.arrayBuffer();
+          const bytes = Array.from(new Uint8Array(buffer));
+          const savedPath = await invoke('save_pdf_to_desktop', { bytes, filename, folder: 'UTILIDADES' });
+          console.log(`Guardado exitoso en Desktop: ${savedPath}`);
+      } catch (e) {
+          console.error("Fallo al guardar nativamente, usando fallback", e);
+          const url = URL.createObjectURL(blob);
+          const link = window.document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          
+          window.document.body.appendChild(link);
+          link.click();
+          
+          setTimeout(() => {
+            window.document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          }, 100);
+      }
+
+      toast.success("Documento Utilidad Descargado", { id: 'pdf-client-profit' });
+    } catch (error: any) {
+      console.error("DetalleCliente Profit PDF Error:", error);
+      toast.error(`Error al generar utilidad PDF: ${error.message || 'Error de calculo'}`, { id: 'pdf-client-profit' });
+    } finally {
+      setIsGeneratingProfit(false);
     }
   };
 
@@ -305,14 +350,23 @@ export const DetalleCliente = () => {
                            </div>
                         )}
 
-                        <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end">
+                        <div className="mt-6 pt-4 border-t border-gray-200 flex justify-end gap-3 flex-wrap">
                            <button 
                              onClick={() => handleDownloadTicket(ticket)}
                              disabled={isGenerating}
                              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-5 py-2.5 rounded-xl font-semibold transition-all shadow-md active:scale-95 disabled:opacity-50"
                            >
                              {isGenerating ? <RefreshCw size={18} className="animate-spin" /> : <Download size={18} />}
-                             <span>Descargar PDF del Ticket</span>
+                             <span>Descargar PDF (Público)</span>
+                           </button>
+
+                           <button 
+                             onClick={() => handleDownloadProfitTicket(ticket)}
+                             disabled={isGeneratingProfit}
+                             className="flex items-center gap-2 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-5 py-2.5 rounded-xl font-semibold transition-all shadow-md active:scale-95 disabled:opacity-50"
+                           >
+                             {isGeneratingProfit ? <RefreshCw size={18} className="animate-spin" /> : <DollarSign size={18} />}
+                             <span>Utilidad (Taller)</span>
                            </button>
                         </div>
                       </div>
