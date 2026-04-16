@@ -28,30 +28,46 @@ export const getStatusLabel = (status: string): string => {
 };
 
 /**
- * Formatea un mensaje estándar para un ticket de servicio.
+ * Formatea un mensaje estándar para un ticket de servicio con desglose Platinum.
  */
-export const formatTicketMessage = (clientName: string, ticketNumber: string | number, status: string, total: number, items?: any[]) => {
+export const formatTicketMessage = (
+  clientName: string, 
+  ticketNumber: string | number, 
+  status: string, 
+  total: number, 
+  items?: any[],
+  subtotal: number = 0,
+  iva: number = 0,
+  retencion: number = 0,
+  discount: number = 0
+) => {
   const statusLabel = getStatusLabel(status);
   
   let itemsDetail = '';
   if (items && items.length > 0) {
-    itemsDetail = `\n📋 *Detalle de servicios:*\n`;
-    items.forEach((item: any, i: number) => {
+    itemsDetail = `\n⚙️ *Detalle de servicios:*\n`;
+    items.forEach((item: any) => {
       const name = item.name || item.brand || 'Servicio';
       const price = Number(item.price || 0);
       const qty = Number(item.quantity || 1);
-      itemsDetail += `   ${i + 1}. ${name} x${qty} — $${(price * qty).toLocaleString('es-MX')}\n`;
+      itemsDetail += `• ${name} (${qty}x) — _$${(price * qty).toLocaleString('es-MX')}_\n`;
     });
   }
 
-  return `Hola *${clientName}*, le saludamos de *Multiservicios Automotriz de Cajeme*. 🚗💨
-  
-Su servicio con folio *#${ticketNumber}* se encuentra: *${statusLabel}*.
-${itemsDetail}
-💰 *Total:* $${total.toLocaleString('es-MX')}
+  const financialSummary = `
+📊 *Resumen Financiero:*
+   - Subtotal Neto: $${subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+   ${discount > 0 ? `   - Descuento (${discount}%): -$${(subtotal * (discount / 100)).toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n` : ''}${iva > 0 ? `   - IVA (16%): +$${iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n` : ''}${retencion > 0 ? `   - Retenciones: -$${retencion.toLocaleString('es-MX', { minimumFractionDigits: 2 })}\n` : ''}   *TOTAL FINAL: $${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}*`;
 
-${status === 'pending' ? '⏳ _Su vehículo está siendo atendido. Le notificaremos cuando esté listo._' : ''}${status === 'completed' ? '✅ _Su vehículo está listo para recoger._' : ''}
+  return `🪽 *Multiservicios Automotriz de Cajeme*
+_Ingeniería en Servicios_
 
-Si tiene alguna duda o desea *confirmar esta cotización*, responda a este mensaje. ¡Gracias por su confianza!`;
+Hola *${clientName}*, le enviamos el detalle de su servicio con folio *#${ticketNumber}*.
+
+📍 *Estado:* ${statusLabel}
+${itemsDetail}${financialSummary}
+
+${status === 'pending' ? '⏳ _Su vehículo está siendo atendido por nuestros expertos. Le avisaremos en cuanto esté listo._' : ''}${status === 'completed' ? '✅ _Su vehículo está listo. Puede pasar a recogerlo a nuestras instalaciones._' : ''}
+
+Si desea confirmar esta cotización o tiene dudas, por favor responda a este mensaje. 🪽`;
 };
-

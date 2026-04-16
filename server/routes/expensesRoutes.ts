@@ -9,14 +9,27 @@ router.use(verifyToken);
 
 router.get('/', async (req, res) => {
   try {
-    logger.info('GET /api/expenses');
+    const { date, includeArchived } = req.query;
+    const whereClause: any = {};
+
+    // Filter by Archive Status
+    if (includeArchived !== 'true') {
+      whereClause[Op.or] = [
+        { is_archived: false },
+        { is_archived: null }
+      ];
+    }
+
+    // Filter by Date
+    if (date && typeof date === 'string') {
+      const startOfDay = new Date(`${date}T00:00:00`);
+      const endOfDay = new Date(`${date}T23:59:59`);
+      whereClause.date = { [Op.between]: [startOfDay, endOfDay] };
+    }
+
+    logger.info(`GET /api/expenses - Date: ${date}, Archived: ${includeArchived}`);
     const expenses = await Expense.findAll({
-      where: {
-        [Op.or]: [
-          { is_archived: false },
-          { is_archived: null }
-        ]
-      },
+      where: whereClause,
       order: [['date', 'DESC']]
     });
     res.json(expenses);

@@ -275,6 +275,17 @@ export const Clientes = () => {
                             <p className="text-xs font-bold text-slate-700 truncate">{client.phone}</p>
                         </div>
                     </div>
+
+                    {client.benefits && (
+                        <div className="mt-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                            <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                                <span className="text-emerald-500">✦</span> Beneficios Asignados
+                            </p>
+                            <p className="text-xs font-semibold text-emerald-800 line-clamp-2 leading-tight">
+                                {client.benefits}
+                            </p>
+                        </div>
+                    )}
                   </div>
                 </div>
                 

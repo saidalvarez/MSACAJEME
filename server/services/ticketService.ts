@@ -12,6 +12,25 @@ export class TicketService {
   }
 
   /**
+   * Calcula el total quirúrgico del ticket considerando impuestos y descuentos.
+   * Réplica exacta de la lógica del frontend para consistencia total.
+   */
+  private static calculateTotal(items: any[], formatType: string, discountPercent: number = 0): number {
+    const subtotal = items.reduce((sum, item) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
+    const discountAmount = subtotal * (Number(discountPercent || 0) / 100);
+    const baseTotal = subtotal - discountAmount;
+
+    const hasIVA = formatType === 'payment_info' || formatType === 'payment_no_retention';
+    const hasRetencion = formatType === 'payment_info';
+
+    const iva = hasIVA ? baseTotal * 0.16 : 0;
+    const retencion = hasRetencion ? baseTotal * 0.0125 : 0;
+
+    const grandTotal = baseTotal + iva - retencion;
+    return Math.max(0, Number(grandTotal.toFixed(2)));
+  }
+
+  /**
    * Obtiene tickets paginados con filtros de búsqueda y estado.
    */
   static async getTickets(limit: number = 20, offset: number = 0, search?: string, status?: string) {
@@ -63,12 +82,8 @@ export class TicketService {
       ticketData.service_category = ticketData.service_category || ticketData.serviceCategory || 'general';
       ticketData.date = ticketData.date || new Date();
       
-      let calculatedTotal = 0;
-      if (items && items.length > 0) {
-        calculatedTotal = items.reduce((sum: number, item: any) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
-      }
-      const discount = Number(ticketData.discount) || 0;
-      ticketData.total = Math.max(0, calculatedTotal - discount);
+      const discount = Number(ticketData.discount) || 0; 
+      ticketData.total = this.calculateTotal(items || [], ticketData.format_type, discount);
 
       const maxFolio = await Ticket.max('ticket_number') as number || 0;
       ticketData.ticket_number = maxFolio + 1;
@@ -83,11 +98,17 @@ export class TicketService {
             const inv = await Inventory.findByPk(item.inventory_id, { transaction: t });
             if (inv) {
               const qty = Number(item.quantity || 1);
-              if (qty > inv.currentStock) {
-                logger.warn(`[STOCK] Producto "${inv.brand}" stock insuficiente: disponible=${inv.currentStock}, solicitado=${qty}`);
+              const available = inv.currentStock - inv.reservedStock;
+              
+              if (qty > available) {
+                logger.warn(`[STOCK] Producto "${inv.brand}" insuficiente para reserva: disponible=${available}, solicitado=${qty}`);
               }
-              const newStock = Math.max(0, inv.currentStock - qty);
-              await inv.update({ currentStock: newStock }, { transaction: t });
+
+              if (ticket.status === 'pending') {
+                await inv.update({ reservedStock: inv.reservedStock + qty }, { transaction: t });
+              } else if (ticket.status === 'completed') {
+                await inv.update({ currentStock: Math.max(0, inv.currentStock - qty) }, { transaction: t });
+              }
             }
           }
         }
@@ -118,25 +139,44 @@ export class TicketService {
       if (ticketData.serviceCategory) ticketData.service_category = ticketData.service_category || ticketData.serviceCategory;
 
       if (items) {
-        const calculatedTotal = items.reduce((sum: number, item: any) => sum + (Number(item.price || 0) * Number(item.quantity || 1)), 0);
-        const discount = Number(ticketData.discount !== undefined ? ticketData.discount : ticket.discount) || 0;
-        ticketData.total = Math.max(0, calculatedTotal - discount);
+        const discount = Number(ticketData.discount !== undefined ? ticketData.discount : (ticketData.discountPercent || ticket.discount)) || 0;
+        const formatType = ticketData.format_type || ticket.format_type;
+        ticketData.total = this.calculateTotal(items, formatType, discount);
 
         const oldItems = ticket.items || [];
+        const oldStatus = ticket.status;
+        const newStatus = ticketData.status || oldStatus;
+
+        // Restore old stock based on old status
         for (const oldItem of oldItems) {
           if (oldItem.inventory_id) {
             const inv = await Inventory.findByPk(oldItem.inventory_id, { transaction: t });
-            if (inv) await inv.update({ currentStock: inv.currentStock + Number(oldItem.quantity) }, { transaction: t });
+            if (inv) {
+              const qty = Number(oldItem.quantity);
+              if (oldStatus === 'pending') {
+                await inv.update({ reservedStock: Math.max(0, inv.reservedStock - qty) }, { transaction: t });
+              } else if (oldStatus === 'completed' || oldStatus === 'archived') {
+                await inv.update({ currentStock: inv.currentStock + qty }, { transaction: t });
+              }
+            }
           }
         }
 
         await ItemTicket.destroy({ where: { ticket_id: id }, transaction: t });
 
+        // Apply new stock based on new status
         for (const newItem of items) {
           await ItemTicket.create({ ...newItem, ticket_id: id }, { transaction: t });
           if (newItem.inventory_id) {
             const inv = await Inventory.findByPk(newItem.inventory_id, { transaction: t });
-            if (inv) await inv.update({ currentStock: Math.max(0, inv.currentStock - Number(newItem.quantity)) }, { transaction: t });
+            if (inv) {
+              const qty = Number(newItem.quantity);
+              if (newStatus === 'pending') {
+                await inv.update({ reservedStock: inv.reservedStock + qty }, { transaction: t });
+              } else if (newStatus === 'completed') {
+                await inv.update({ currentStock: Math.max(0, inv.currentStock - qty) }, { transaction: t });
+              }
+            }
           }
         }
       }
@@ -154,7 +194,14 @@ export class TicketService {
       for (const item of (ticket.items || [])) {
         if (item.inventory_id) {
           const inv = await Inventory.findByPk(item.inventory_id, { transaction: t });
-          if (inv) await inv.update({ currentStock: inv.currentStock + Number(item.quantity) }, { transaction: t });
+          if (inv) {
+            const qty = Number(item.quantity);
+            if (ticket.status === 'pending') {
+              await inv.update({ reservedStock: Math.max(0, inv.reservedStock - qty) }, { transaction: t });
+            } else if (ticket.status === 'completed' || ticket.status === 'archived') {
+              await inv.update({ currentStock: inv.currentStock + qty }, { transaction: t });
+            }
+          }
         }
       }
 

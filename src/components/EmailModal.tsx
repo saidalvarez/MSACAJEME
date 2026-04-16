@@ -53,6 +53,19 @@ export const EmailModal = ({ isOpen, onClose, defaultEmail, ticketNumber, ticket
         pdfBase64 = btoa(binary);
       }
 
+      // Financial calculations for the email summary
+      const items = ticket?.items || [];
+      const subtotal = items.reduce((sum: number, i: any) => sum + (Number(i.price || 0) * Number(i.quantity || 1)), 0);
+      const discount = Number(ticket?.discount || 0);
+      const baseTotal = subtotal * (1 - (discount / 100));
+      
+      const currentFormat = formatType || ticket?.format_type || 'payment_info';
+      const hasIVA = currentFormat === 'payment_info' || currentFormat === 'payment_no_retention';
+      const hasRetencion = currentFormat === 'payment_info';
+      
+      const iva = hasIVA ? baseTotal * 0.16 : 0;
+      const retencion = hasRetencion ? baseTotal * 0.0125 : 0;
+
       // Send via backend API
       const token = sessionStorage.getItem('msa_token');
       const response = await fetch('http://localhost:3001/api/email/send', {
@@ -66,7 +79,14 @@ export const EmailModal = ({ isOpen, onClose, defaultEmail, ticketNumber, ticket
           subject: `Cotización de Servicio #${ticketNumber} — Multiservicios Cajeme`,
           ticketNumber,
           clientName: ticket?.client_name || ticket?.clientName || 'Cliente',
-          total: ticket?.total || 0,
+          vehicle: ticket?.vehicle || 'No especificado',
+          date: ticket?.date || new Date().toISOString(),
+          total: baseTotal + iva - retencion,
+          subtotal,
+          iva,
+          retencion,
+          discount,
+          items,
           pdfBase64
         })
       });

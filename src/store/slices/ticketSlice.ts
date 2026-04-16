@@ -90,6 +90,9 @@ export const createTicketSlice: AppStateCreator<Pick<import('../storeTypes').Tic
       await dataAdapter.updateTicket(id, payload, true);
     } catch (e) {
       console.error("Failed to update ticket status online", e);
+      toast.error("Error al actualizar el estado del servicio");
+      // Optionally reload to ensure state consistency
+      await get().loadTickets(1);
     }
   },
 
@@ -110,12 +113,10 @@ export const createTicketSlice: AppStateCreator<Pick<import('../storeTypes').Tic
       set(state => ({
         tickets: state.tickets.map(t => t.id === id ? { ...t, ...updatedTicket } : t)
       }));
+      return updatedTicket;
     } catch (error) {
       console.error("Error updating ticket store:", error);
-      // Fallback update in case of sync issues
-      set(state => ({
-        tickets: state.tickets.map(t => t.id === id ? { ...t, ...data } : t)
-      }));
+      throw error; // Re-throw to allow component (toast) handling
     }
   },
 

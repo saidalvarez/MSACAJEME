@@ -17,6 +17,7 @@ import { sendWhatsAppNotification, formatTicketMessage } from '../utils/notifica
 import { useStore } from '../store/useStore';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
 import { InfoTooltip } from '../components/ui/InfoTooltip';
+import { VehicleHistoryModal } from '../components/VehicleHistoryModal';
 
 const WhatsAppIcon = ({ size = 24, className = "" }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={size} height={size} fill="currentColor" className={className}>
@@ -62,12 +63,26 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
             setIsGenerating(false);
         }
 
+        // Raphael: Surgical calculation for the Platinum WhatsApp message
+        const items = ticket.items || [];
+        const subtotalRaw = items.reduce((acc: number, i: any) => acc + (Number(i.price) * Number(i.quantity)), 0);
+        const discount = Number(ticket.discount || 0);
+        const subtotal = subtotalRaw * (1 - (discount / 100));
+        
+        const hasIVA = format !== 'basic';
+        const iva = hasIVA ? subtotal * 0.16 : 0;
+        const retencion = (format === 'payment_info') ? subtotal * 0.0125 : 0;
+
         const message = formatTicketMessage(
             ticket.client_name || ticket.clientName,
             ticket.ticket_number || ticket.ticketNumber,
             ticket.status,
             ticket.total,
-            ticket.items || []
+            items,
+            subtotalRaw,
+            iva,
+            retencion,
+            discount
         );
         // Pequeño delay para asegurar que el PDF comience a descargarse antes de cambiar de pestaña
         setTimeout(() => {
@@ -111,9 +126,9 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
     }, [ticket, format]);
 
     const formatLabels: Record<string, string> = {
-        'payment_info': 'INF. PAGO',
-        'payment_no_retention': 'SIN RETENCIÓN',
-        'basic': 'BÁSICO'
+        'payment_info': 'FISCAL (IVA+RET)',
+        'payment_no_retention': 'COMERCIAL (IVA)',
+        'basic': 'SIMPLE (NETO)'
     };
 
     if (!isToday) {
@@ -235,7 +250,18 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                 {/* RIGHT: Price & Actions */}
                 <div className="flex flex-col md:items-end justify-between self-stretch gap-4">
                     <div className="text-left md:text-right mt-1">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1 leading-none">Total</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1 leading-none">Inversión Final</span>
+                        
+                        {/* Financial Breakdown (Surgical Detail) */}
+                        {format !== 'basic' && (
+                            <div className="flex flex-col mb-1.5 gap-0.5">
+                                <span className="text-[9px] font-bold text-slate-400">NETO {formatCurrency(ticket.items?.reduce((acc: number, i: any) => acc + (Number(i.price) * Number(i.quantity)), 0) * (1 - (Number(ticket.discount || 0) / 100)))}</span>
+                                <span className="text-[9px] font-bold text-indigo-400">
+                                    {format === 'payment_info' ? '+ IVA - RET' : '+ IVA'}
+                                </span>
+                            </div>
+                        )}
+
                         <span className="text-2xl font-black tracking-tighter leading-none text-emerald-600">
                             {formatCurrency(ticket.total)}
                         </span>
@@ -307,12 +333,16 @@ export const PanelControl = () => {
   const { tickets, expenses, sales, pendingTickets, loadExpenses, loadSales, deleteTicket, updateTicketStatus, archiveTicketsByDate, removePendingTicket } = useStore();
   
   const [pastTickets, setPastTickets] = useState<any[]>([]);
+  const [pastSales, setPastSales] = useState<any[]>([]);
+  const [pastExpenses, setPastExpenses] = useState<any[]>([]);
   const [isLoadingPast, setIsLoadingPast] = useState(false);
 
   const allTickets = useMemo(() => {
     // Combine synced and pending tickets so they all appear in the same dashboard
     const pendingWithStatus = (pendingTickets || []).map((t: any) => ({ ...t, status: 'pending', _isOffline: true }));
-    return [...pendingWithStatus, ...tickets, ...pastTickets];
+    const combined = [...pendingWithStatus, ...tickets, ...pastTickets];
+    // Surgical duplicate removal by ID (fundamental for history/active overlap)
+    return Array.from(new Map(combined.map(item => [item.id, item])).values());
   }, [tickets, pastTickets, pendingTickets]);
   
   const [searchTerm, setSearchTerm] = useState('');
@@ -322,6 +352,7 @@ export const PanelControl = () => {
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   const [showCorteModal, setShowCorteModal] = useState(false);
+  const [showExpedientModal, setShowExpedientModal] = useState(false);
   const [corteCount, setCorteCount] = useState(0);
 
   const [animationParent] = useAutoAnimate();
@@ -337,29 +368,29 @@ export const PanelControl = () => {
     loadSales();
   }, [loadExpenses, loadSales]);
 
-  useEffect(() => {
-    let active = true;
-    if (isToday) {
-      setPastTickets([]);
-      return;
+  const loadHistory = useCallback(async () => {
+    setIsLoadingPast(true);
+    try {
+        const { dataAdapter } = await import('../services/dataAdapter');
+        const [resTickets, resSales, resExp] = await Promise.all([
+          dataAdapter.getHistorial(1, 100, '', selectedDate, selectedDate),
+          dataAdapter.getSales({ date: selectedDate, includeArchived: true }),
+          dataAdapter.getExpenses({ date: selectedDate, includeArchived: true })
+        ]);
+        
+        setPastTickets(resTickets.rows || []);
+        setPastSales(resSales || []);
+        setPastExpenses(resExp || []);
+    } catch (e) {
+        console.error("Error loading historical data:", e);
+    } finally {
+        setIsLoadingPast(false);
     }
-    const loadPastTickets = async () => {
-      setIsLoadingPast(true);
-      try {
-          const { dataAdapter } = await import('../services/dataAdapter');
-          const res = await dataAdapter.getHistorial(1, 100, '', selectedDate, selectedDate);
-          if (active) {
-            setPastTickets(res.rows || []);
-          }
-      } catch (e) {
-         console.error(e);
-      } finally {
-         if (active) setIsLoadingPast(false);
-      }
-    };
-    const timer = setTimeout(loadPastTickets, 300);
-    return () => { active = false; clearTimeout(timer); }
-  }, [selectedDate, isToday]);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   // Date bounds for a single day
   const getStartOfDay = (dateString: string) => new Date(`${dateString}T00:00:00`);
@@ -415,52 +446,57 @@ export const PanelControl = () => {
 
   // Financial Summaries based on selected date
   const dailyIncome = useMemo(() => {
-    const allEconomicActivity = [...sales, ...allTickets];
+    // Para el cálculo de ingresos, usamos tanto lo activo como lo archivado (historial) del día
+    // Esto evita que el contador 'baje' al hacer el corte de día.
+    const allEconomicActivity = [...sales, ...allTickets, ...pastSales];
     
-    return allEconomicActivity.filter((t: any) => {
-      const tDate = new Date(t.date);
+    // Eliminamos duplicados por ID (por si acaso un ticket está en tickets y pastTickets al mismo tiempo)
+    const uniqueActivity = Array.from(new Map(allEconomicActivity.map(item => [item.id, item])).values());
+
+    return uniqueActivity.filter((t: any) => {
+      const tDate = new Date(t.date || t.created_at || new Date());
       const start = getStartOfDay(selectedDate);
       const end = getEndOfDay(selectedDate);
       
-      // tickets y ventas siempre entran por fecha, excepto si es un ticket pendiente de hoy.
-      // Pero como estamos sumando el "Income", TODO ingreso debe ser estrictamente del día validado:
       const isWithinSelectedDay = (tDate >= start && tDate <= end);
-
       if (!isWithinSelectedDay) return false;
 
       // Logic for Tickets (active or archived)
       if (t.ticket_number || t.ticketNumber) {
-        return t.status === 'completed';
+        return t.status === 'completed' || t.status === 'archived' || t.is_archived || t.isArchived;
       } 
       
       // Logic for Sales (assume all sales are income)
       return true;
     }).reduce((acc: number, curr: any) => acc + Number(curr.total || 0), 0);
-  }, [sales, allTickets, selectedDate, isToday]);
+  }, [sales, allTickets, pastSales, selectedDate]);
 
   const totalExpenses = useMemo(() => {
-    return expenses
+    const allExpPossible = [...expenses, ...pastExpenses];
+    const uniqueExpenses = Array.from(new Map(allExpPossible.map(item => [item.id, item])).values());
+
+    return uniqueExpenses
       .filter((exp: any) => {
         const expDate = new Date(exp.date);
         const start = getStartOfDay(selectedDate);
         const end = getEndOfDay(selectedDate);
-        // Los gastos siempre deben pertenecer estrictamente al día seleccionado
         const isWithinSelectedDay = (expDate >= start && expDate <= end);
         return exp.type === 'expense' && isWithinSelectedDay;
       })
       .reduce((acc: number, exp: any) => acc + Number(exp.amount || 0), 0);
-  }, [expenses, selectedDate, isToday]);
+  }, [expenses, pastExpenses, selectedDate]);
 
   const completedCount = useMemo(() => {
     return allTickets.filter((t: any) => {
-        const tDate = new Date(t.date);
+        const tDate = new Date(t.date || t.created_at || new Date());
         const start = getStartOfDay(selectedDate);
         const end = getEndOfDay(selectedDate);
-        const isActuallyArchived = t.is_archived || t.isArchived || t.status === 'archived';
-        const isWithinSelectedDay = isToday ? !isActuallyArchived : (tDate >= start && tDate <= end);
-        return t.status === 'completed' && isWithinSelectedDay;
+        const isWithinSelectedDay = (tDate >= start && tDate <= end);
+        const isClosed = t.status === 'completed' || t.status === 'archived' || t.is_archived || t.isArchived;
+        
+        return isClosed && isWithinSelectedDay;
     }).length;
-  }, [allTickets, selectedDate, isToday]);
+  }, [allTickets, selectedDate]);
 
   const totalNet = dailyIncome - totalExpenses;
 
@@ -485,9 +521,11 @@ export const PanelControl = () => {
 
   const confirmCorte = useCallback(async () => {
     await archiveTicketsByDate(selectedDate);
+    // Raphael: Sincronización inmediata del historial para mantener la integridad de la caja
+    await loadHistory();
     toast.success('Corte de día realizado correctamente.', { icon: '✅' });
     setShowCorteModal(false);
-  }, [selectedDate, archiveTicketsByDate]);
+  }, [selectedDate, archiveTicketsByDate, loadHistory]);
 
   const handleDelete = useCallback((id: string) => {
     setTicketToDelete(id);
@@ -582,16 +620,25 @@ export const PanelControl = () => {
             </button>
         </div>
 
-        {/* Buscador */}
-        <div className="relative flex-1 w-full max-w-md">
-            <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-            <input 
-                type="text" 
-                placeholder="Buscar por cliente, servicio, nota..." 
-                className="w-full border border-slate-200 rounded-lg p-2.5 pl-9 text-sm focus:border-slate-400 outline-none transition-colors bg-slate-50 focus:bg-white"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-            />
+        {/* Buscador y Herramientas */}
+        <div className="flex flex-col md:flex-row gap-4 flex-1 w-full lg:max-w-xl">
+            <div className="relative flex-1">
+                <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+                <input 
+                    type="text" 
+                    placeholder="Buscar por cliente, servicio, nota..." 
+                    className="w-full h-11 border border-slate-200 rounded-lg p-2.5 pl-9 text-sm focus:border-slate-400 outline-none transition-colors bg-slate-50 focus:bg-white"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+            
+            <button 
+                onClick={() => setShowExpedientModal(true)}
+                className="h-11 px-6 bg-slate-900 hover:bg-slate-800 text-white rounded-lg flex items-center justify-center gap-2 text-xs font-black uppercase tracking-widest transition-all shadow-md group"
+            >
+                <Clock size={16} className="group-hover:rotate-[-45deg] transition-transform" /> Expediente
+            </button>
         </div>
       </div>
 
@@ -762,6 +809,10 @@ export const PanelControl = () => {
         document.body
       )}
 
+      <VehicleHistoryModal 
+        isOpen={showExpedientModal} 
+        onClose={() => setShowExpedientModal(false)} 
+      />
     </div>
   );
 };

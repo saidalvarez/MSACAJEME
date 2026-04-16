@@ -415,10 +415,16 @@ export const EditarTicket = () => {
                                     Descripción del Concepto {errors.includes(`item_name_${item.id}`) && <span className="text-danger-500 font-bold">*</span>}
                                 </label>
                                 <input 
-                                   className={`w-full h-11 bg-white border border-slate-200 rounded-lg px-4 text-sm font-bold outline-none transition-all ${errors.includes(`item_name_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
+                                   readOnly={!!item.inventory_id}
+                                   className={`w-full h-11 border rounded-lg px-4 text-sm font-bold outline-none transition-all ${
+                                     item.inventory_id 
+                                       ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed' 
+                                       : 'bg-white border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary-500/10'
+                                   } ${errors.includes(`item_name_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
                                    placeholder="Ej. Cambio de Aceite Sintético..."
                                    value={item.name} 
                                    onChange={(e) => {
+                                       if (item.inventory_id) return;
                                        updateItem(item.id, 'name', e.target.value);
                                        if (errors.includes(`item_name_${item.id}`)) setErrors(errors.filter(err => err !== `item_name_${item.id}`));
                                    }} 
@@ -427,12 +433,18 @@ export const EditarTicket = () => {
                             <div className="md:col-span-3">
                                 <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2 block px-1">Precio Unitario</label>
                                 <div className="relative">
-                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">$</span>
+                                    <span className={`absolute left-4 top-1/2 -translate-y-1/2 font-bold text-sm ${item.inventory_id ? 'text-success-600' : 'text-slate-400'}`}>$</span>
                                     <input 
                                        type="number" 
-                                       className={`w-full h-11 bg-white border border-slate-200 rounded-lg pl-9 pr-4 text-sm font-bold outline-none transition-all ${errors.includes(`item_price_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
+                                       readOnly={!!item.inventory_id}
+                                       className={`w-full h-11 border rounded-lg pl-9 pr-4 text-sm font-bold outline-none transition-all ${
+                                         item.inventory_id 
+                                           ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed' 
+                                           : 'bg-white border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary-500/10'
+                                       } ${errors.includes(`item_price_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
                                         value={item.price ?? ''} 
                                         onChange={(e) => {
+                                            if (item.inventory_id) return;
                                             const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                             updateItem(item.id, 'price', isNaN(val) ? 0 : val);
                                             if (errors.includes(`item_price_${item.id}`)) setErrors(errors.filter(err => err !== `item_price_${item.id}`));

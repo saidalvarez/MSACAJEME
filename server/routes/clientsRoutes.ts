@@ -13,16 +13,23 @@ router.get('/', async (req, res) => {
     logger.info('GET /api/clients');
     const query = `
       SELECT c.*,
-        CAST(COALESCE(t.visits, 0) AS INTEGER) as total_visits,
-        CAST(COALESCE(t.spent, 0) AS NUMERIC) as total_spent,
-        COALESCE(t.last_ticket, c.created_at) as last_activity
+        CAST(COALESCE(act.visits, 0) AS INTEGER) as total_visits,
+        CAST(COALESCE(act.spent, 0) AS NUMERIC) as total_spent,
+        COALESCE(act.last_activity, c.created_at) as last_activity
       FROM clients c
       LEFT JOIN (
-        SELECT client_id, COUNT(id) as visits, SUM(total) as spent, MAX(date) as last_ticket 
-        FROM tickets 
-        WHERE "deletedAt" IS NULL
+        SELECT 
+          client_id, 
+          COUNT(id) as visits, 
+          SUM(total) as spent, 
+          MAX(date) as last_activity
+        FROM (
+          SELECT id, client_id, total, date FROM tickets WHERE "deletedAt" IS NULL
+          UNION ALL
+          SELECT id, client_id, total, date FROM sales WHERE "deletedAt" IS NULL
+        ) as combined
         GROUP BY client_id
-      ) t ON c.id = t.client_id
+      ) act ON c.id = act.client_id
       ORDER BY c.created_at DESC
     `;
     const [clients] = await sequelize.query(query);

@@ -643,10 +643,16 @@ export const NuevoTicket = () => {
                                     Descripción del Concepto {errors.includes(`item_name_${item.id}`) && <span className="text-danger-500">*</span>}
                                 </label>
                                 <input 
-                                   className={`w-full h-10 bg-white border border-slate-200 rounded-lg px-3 text-sm font-medium outline-none transition-all ${errors.includes(`item_name_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
+                                   readOnly={!!item.inventory_id}
+                                   className={`w-full h-10 border rounded-lg px-3 text-sm font-medium outline-none transition-all ${
+                                     item.inventory_id 
+                                       ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed' 
+                                       : 'bg-white border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary-500/10'
+                                   } ${errors.includes(`item_name_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
                                    placeholder="Ej. Cambio de Aceite Sintético..."
                                    value={item.name} 
                                    onChange={(e) => {
+                                       if (item.inventory_id) return;
                                        updateItem(item.id, 'name', e.target.value);
                                        if (errors.includes(`item_name_${item.id}`)) setErrors(errors.filter(err => err !== `item_name_${item.id}`));
                                    }} 
@@ -654,15 +660,21 @@ export const NuevoTicket = () => {
                             </div>
                             <div className="md:col-span-3">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block px-1">
-                                    Precio Unitario {errors.includes(`item_price_${item.id}`) && <span className="text-danger-500">*</span>}
+                                    Precio Unitario {errors.includes(`item_price_${item.id}`) && <span className="text-danger-500">*</span>} {item.inventory_id && item.price === 0 && <span className="text-indigo-600 font-black ml-1">(INSUMO)</span>}
                                 </label>
                                 <div className="relative">
                                     <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs" size={14} />
                                     <input 
                                        type="number" 
-                                       className={`w-full h-10 bg-white border border-slate-200 rounded-lg pl-9 pr-3 text-sm font-medium outline-none transition-all ${errors.includes(`item_price_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
+                                       readOnly={!!item.inventory_id}
+                                       className={`w-full h-10 border rounded-lg pl-9 pr-3 text-sm font-bold outline-none transition-all ${
+                                         item.inventory_id 
+                                           ? 'bg-slate-50 border-slate-200 text-slate-500 cursor-not-allowed' 
+                                           : 'bg-white border-slate-200 text-slate-900 focus:ring-2 focus:ring-primary-500/10'
+                                       } ${errors.includes(`item_price_${item.id}`) ? 'border-danger-300 bg-danger-50' : ''}`}
                                         value={item.price || ''} 
                                         onChange={(e) => {
+                                            if (item.inventory_id) return;
                                             const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                             updateItem(item.id, 'price', isNaN(val) ? 0 : val);
                                             if (errors.includes(`item_price_${item.id}`)) setErrors(errors.filter(err => err !== `item_price_${item.id}`));
@@ -892,9 +904,33 @@ export const NuevoTicket = () => {
                                                   {item.category === 'Refaccion' ? item.type : `${item.viscosity} · ${item.type}`}
                                               </p>
                                           </div>
-                                          <div className="text-right">
-                                              <p className="font-bold text-sm text-emerald-600">{formatCurrency(item.marketPrice || 0)}</p>
-                                              <p className="text-[9px] text-slate-400 font-bold uppercase">Desc: <span className={item.currentStock <= 5 ? "text-danger-500" : "text-emerald-500"}>{item.currentStock}</span></p>
+                                          <div className="flex flex-col items-end gap-1">
+                                              <button 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const itemName = item.category === 'Refaccion' ? `${item.brand} ${item.type}` : `${item.brand} ${item.viscosity} ${item.type}`;
+                                                    const newItem = {
+                                                        id: Date.now() + Math.random(),
+                                                        name: itemName.trim(),
+                                                        price: 0,
+                                                        quantity: 1,
+                                                        inventory_id: item.id,
+                                                        purchase_price: item.purchasePrice || 0
+                                                    };
+                                                    const lastItem = items[items.length - 1];
+                                                    if (lastItem && !lastItem.name && lastItem.price === 0 && lastItem.quantity === 1) {
+                                                        setItems(items.map(i => i.id === lastItem.id ? newItem : i));
+                                                    } else {
+                                                        setItems([...items, newItem]);
+                                                    }
+                                                    toast.success(`${itemName} (Insumo) añadido`);
+                                                    setShowInventoryModal(false);
+                                                }}
+                                                className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded text-[8px] font-black uppercase tracking-tighter transition-all"
+                                              >
+                                                + Insumo ($0)
+                                              </button>
+                                              <p className="font-bold text-sm text-emerald-600 leading-none">{formatCurrency(item.marketPrice || 0)}</p>
                                           </div>
                                       </div>
                                   ))}

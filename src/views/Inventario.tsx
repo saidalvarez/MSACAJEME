@@ -591,28 +591,61 @@ export const Inventario = () => {
                          </div>
                       </div>
 
-                      {/* Stock Info */}
+                      {/* Stock Info Breakdown (Raphael Surgical Logic) */}
                       <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mt-auto">
-                         <div className="flex items-center justify-between mb-2">
-                           <span className="text-xs font-black text-slate-500 uppercase tracking-widest">Stock Físico</span>
-                           {isEditing ? (
-                             <div className="flex gap-2">
-                               <input type="number" autoFocus className="w-16 h-8 text-center bg-white border-2 border-primary-500 rounded font-black outline-none" value={editData.currentStock} onChange={e => setEditData({currentStock: parseInt(e.target.value)||0})} />
-                               <button onClick={saveEdit} className="px-3 bg-primary-600 text-white rounded text-[10px] font-black uppercase"><Save size={12}/> OK</button>
-                             </div>
-                           ) : (
-                             <div className="flex gap-2 items-center">
-                               {isOut ? (
-                                 <span className="text-xs font-black text-white bg-danger-500 px-2 py-0.5 rounded uppercase tracking-widest animate-pulse">AGOTADO</span>
-                               ) : (
-                                  <span className={`text-xl font-black ${isLow ? 'text-warning-600' : 'text-slate-900'}`}>{current}</span>
+                         <div className="grid grid-cols-3 gap-2">
+                           {/* Físico (Editable) */}
+                           <div className="flex flex-col text-center md:text-left">
+                             <div className="flex items-center justify-center md:justify-start gap-1 mb-1">
+                               <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Físico</span>
+                               {!isEditing && (
+                                 <button onClick={() => { setEditingId(item.id); setEditData({currentStock: current}); }} className="text-slate-300 hover:text-primary-600 transition-colors">
+                                   <Edit2 size={8} />
+                                 </button>
                                )}
-                               <button onClick={() => { setEditingId(item.id); setEditData({currentStock: current}); }} className="w-6 h-6 flex items-center justify-center bg-white border border-slate-200 text-slate-400 hover:text-primary-600 hover:border-primary-200 rounded transition-all">
-                                 <Edit2 size={10} />
-                               </button>
                              </div>
-                           )}
+                             {isEditing ? (
+                               <input type="number" autoFocus className="w-full h-8 text-center bg-white border-2 border-primary-500 rounded font-black outline-none text-xs" value={editData.currentStock} onChange={e => setEditData({currentStock: parseInt(e.target.value)||0})} />
+                             ) : (
+                               <span className="text-sm font-black text-slate-700">{current}</span>
+                             )}
+                           </div>
+
+                           {/* Reservado (Info) */}
+                           <div className="flex flex-col border-x border-slate-200 px-2 text-center">
+                             <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-1">Reservado</span>
+                             <span className="text-sm font-black text-indigo-600">{item.reservedStock ?? item.reserved_stock ?? 0}</span>
+                           </div>
+
+                           {/* Disponible (Calculado) */}
+                           <div className="flex flex-col text-center md:text-right">
+                             <span className="text-[8px] font-black text-emerald-500 uppercase tracking-widest mb-1">Disponible</span>
+                             <span className={`text-sm font-black ${current - (item.reservedStock ?? item.reserved_stock ?? 0) <= 0 ? 'text-danger-600' : 'text-emerald-600'}`}>
+                               {Math.max(0, current - (item.reservedStock ?? item.reserved_stock ?? 0))}
+                             </span>
+                           </div>
                          </div>
+                         
+                         {isEditing && (
+                           <div className="flex gap-2 mt-3">
+                             <button onClick={saveEdit} className="flex-1 h-7 bg-success-600 text-white rounded font-bold text-[10px] uppercase">Listo</button>
+                             <button onClick={() => setEditingId(null)} className="flex-1 h-7 bg-slate-200 text-slate-600 rounded font-bold text-[10px] uppercase">X</button>
+                           </div>
+                         )}
+
+                         {!isEditing && (
+                            <div className="mt-3">
+                               {isOut ? (
+                                 <div className="bg-danger-50 border border-danger-100 p-1.5 rounded-lg text-center">
+                                   <span className="text-[9px] font-black text-danger-600 uppercase tracking-widest animate-pulse">Producto Agotado</span>
+                                 </div>
+                               ) : (
+                                 <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                                   <div className={`h-full transition-all ${isLow ? 'bg-warning-400' : 'bg-success-500'}`} style={{ width: `${Math.min(100, (current / (min || 5)) * 100)}%` }} />
+                                 </div>
+                               )}
+                            </div>
+                         )}
                       </div>
                     </div>
 
@@ -647,7 +680,7 @@ export const Inventario = () => {
              {filteredCatalog.map(item => (
                 <div key={item.id} className="bg-white p-0 rounded-2xl border border-slate-200 shadow-sm hover:shadow-lg transition-all flex flex-col overflow-hidden group">
                   
-                  {/* Imagen del Catálogo */}
+                  {/* Foto de Catálogo */}
                   <div 
                     className="w-full h-40 bg-slate-50 relative cursor-zoom-in border-b border-slate-100 flex items-center justify-center overflow-hidden"
                     onClick={() => setPreviewImage(item.image || null)}
@@ -662,7 +695,7 @@ export const Inventario = () => {
                     </div>
                   </div>
 
-                  {/* Info */}
+                  {/* Info Catálogo */}
                   <div className="p-5 flex-1 flex flex-col">
                     <h3 className="font-black text-slate-900 text-lg uppercase leading-tight line-clamp-2 mb-1">{item.brand}</h3>
                     <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">{item.type} {item.viscosity && `• ${item.viscosity}`}</p>
@@ -695,7 +728,6 @@ export const Inventario = () => {
                       </div>
                     </div>
                   </div>
-
                 </div>
              ))}
              {filteredCatalog.length === 0 && (

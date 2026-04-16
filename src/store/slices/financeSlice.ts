@@ -69,13 +69,27 @@ export const createFinanceSlice: AppStateCreator<Pick<import('../storeTypes').Fi
     };
     try {
       const res = await dataAdapter.createSale(finalData);
-      set(state => ({ sales: [res, ...state.sales] }));
       
-      const inventory = await dataAdapter.getInventory() as any;
-      set({ inventory: inventory.rows || inventory || [] });
+      // Raphael: Tras el éxito, refrescamos ventas e INVENTARIO para ver los cambios de stock de inmediato.
+      const [allSales, allInventory] = await Promise.all([
+        dataAdapter.getSales(),
+        dataAdapter.getInventory()
+      ]) as any[];
+
+      set({ 
+        sales: allSales.rows || allSales || [],
+        inventory: allInventory.rows || allInventory || []
+      });
+
       return res;
-    } catch (error) {
-       console.error("Error saving sale (Offline Mode):", error);
+    } catch (error: any) {
+       // Raphael: Si hay respuesta del servidor (ej. 400 Stock insuficiente), NO es modo offline, es un error real.
+       if (error.response && error.response.status) {
+         console.error("Servidor rechazó la venta:", error.response.data);
+         throw error;
+       }
+
+       console.error("Error de red consumiendo venta (Activando Modo Offline):", error);
        const { addToSyncQueue } = await import('../../utils/sync');
        addToSyncQueue({
          method: 'API',

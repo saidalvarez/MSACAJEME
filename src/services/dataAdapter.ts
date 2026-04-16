@@ -180,13 +180,26 @@ export const dataAdapter = {
   deleteCatalogItem: (id: any) => secureApi.delete(`/catalog/${id}`),
 
   // GASTOS
-  getExpenses: (): Promise<Expense[]> => secureApi.get('/expenses'),
+  getExpenses: (filters?: { date?: string, includeArchived?: boolean }): Promise<Expense[]> => {
+    const params = new URLSearchParams();
+    if (filters?.date) params.append('date', filters.date);
+    if (filters?.includeArchived) params.append('includeArchived', 'true');
+    const query = params.toString();
+    return secureApi.get(`/expenses${query ? `?${query}` : ''}`);
+  },
   createExpense: (data: any): Promise<Expense> => secureApi.post('/expenses', data),
   deleteExpense: (id: string) => secureApi.delete(`/expenses/${id}`),
   clearExpensesByMonth: (month: string) => secureApi.post('/expenses/clear', { month }),
 
   // VENTAS
-  getSales: (): Promise<Sale[]> => secureApi.get('/sales'),
+  getSales: (filters?: { date?: string, includeArchived?: boolean, clientId?: string }): Promise<Sale[]> => {
+    const params = new URLSearchParams();
+    if (filters?.date) params.append('date', filters.date);
+    if (filters?.includeArchived) params.append('includeArchived', 'true');
+    if (filters?.clientId) params.append('clientId', filters.clientId);
+    const query = params.toString();
+    return secureApi.get(`/sales${query ? `?${query}` : ''}`);
+  },
   createSale: (data: any): Promise<Sale> => secureApi.post('/sales', data),
   clearSalesByMonth: (month: string) => secureApi.post('/sales/clear', { month }),
 

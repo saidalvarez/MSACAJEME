@@ -6,6 +6,8 @@ class Cliente extends Model {
   declare name: string;
   declare phone: string;
   declare email: string;
+  declare notes: string;
+  declare benefits: string;
   declare created_at: Date;
 }
 
@@ -24,6 +26,14 @@ Cliente.init({
   },
   email: {
     type: DataTypes.STRING,
+    allowNull: true
+  },
+  notes: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
+  benefits: {
+    type: DataTypes.TEXT,
     allowNull: true
   },
   created_at: {

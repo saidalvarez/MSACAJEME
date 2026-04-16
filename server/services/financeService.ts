@@ -16,15 +16,15 @@ export class FinanceService {
       raw: true
     });
     
-    // Get Expenses
+    // Get Expenses (both active and archived)
     const expenses = await Expense.findAll({
-      where: { date: dateFilter, is_archived: { [Op.or]: [false, null] } },
+      where: { date: dateFilter },
       raw: true
     });
 
-    // Get Sales
+    // Get Sales (both active and archived)
     const sales = await Sale.findAll({
-      where: { date: dateFilter, is_archived: { [Op.or]: [false, null] } },
+      where: { date: dateFilter },
       raw: true
     });
 

@@ -27,6 +27,7 @@ export const DetalleCliente = () => {
 
   const client = clients.find(c => c.id === id);
   const [historialTickets, setHistorialTickets] = useState<any[]>([]);
+  const [historialSales, setHistorialSales] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchHistorial = async () => {
@@ -35,6 +36,10 @@ export const DetalleCliente = () => {
           // Fetch from historial table by client ID (robust)
           const res = await dataAdapter.getHistorial(1, 100, '', '', '', client.id) as any;
           setHistorialTickets(res.rows || []);
+          
+          // Fetch from sales table by client ID (including archived)
+          const salesRes = await dataAdapter.getSales({ includeArchived: true, clientId: client.id }) as any;
+          setHistorialSales(salesRes.rows || salesRes || []);
         } catch (error) {
           console.error("Error fetching client historial:", error);
         }
@@ -53,23 +58,27 @@ export const DetalleCliente = () => {
   }
 
   // Memoize exact client matches to avoid recalculating on every render
-  const { activeClientTickets, clientSales } = useMemo(() => {
-    if (!client) return { activeClientTickets: [], clientSales: [] };
+  const { activeClientTickets, activeClientSales } = useMemo(() => {
+    if (!client) return { activeClientTickets: [], activeClientSales: [] };
     return {
       activeClientTickets: tickets.filter(t => t.client_id === client.id),
-      clientSales: sales.filter(s => s.client_id === client.id)
+      activeClientSales: sales.filter(s => s.client_id === client.id)
     };
   }, [tickets, sales, client]);
 
   // Merge and Sort tickets ONCE, preventing massive Date parsing overhead during render
   const sortedClientTickets = useMemo(() => {
+    // Evitar duplicidades comparando IDs
     const combined = [...activeClientTickets, ...historialTickets];
-    return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+    return unique.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeClientTickets, historialTickets]);
 
   const sortedClientSales = useMemo(() => {
-    return [...clientSales].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [clientSales]);
+    const combined = [...activeClientSales, ...historialSales];
+    const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+    return unique.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [activeClientSales, historialSales]);
 
   // Precompute totals
   const totalSpentTickets = useMemo(() => sortedClientTickets.reduce((sum, ticket) => sum + (ticket.total || 0), 0), [sortedClientTickets]);

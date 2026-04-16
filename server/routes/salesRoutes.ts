@@ -11,14 +11,32 @@ router.use(verifyToken);
 
 router.get('/', async (req, res) => {
   try {
-    logger.info('GET /api/sales');
+    const { date, includeArchived, clientId } = req.query;
+    const whereClause: any = {};
+
+    // Filter by Archive Status
+    if (includeArchived !== 'true') {
+      whereClause[Op.or] = [
+        { is_archived: false },
+        { is_archived: null }
+      ];
+    }
+
+    // Filter by Date
+    if (date && typeof date === 'string') {
+      const startOfDay = new Date(`${date}T00:00:00`);
+      const endOfDay = new Date(`${date}T23:59:59`);
+      whereClause.date = { [Op.between]: [startOfDay, endOfDay] };
+    }
+
+    if (clientId) {
+      whereClause.client_id = clientId;
+    }
+
+    logger.info(`GET /api/sales - Date: ${date}, Archived: ${includeArchived}, Client: ${clientId}`);
+    
     const sales = await Sale.findAll({
-      where: {
-        [Op.or]: [
-          { is_archived: false },
-          { is_archived: null }
-        ]
-      },
+      where: whereClause,
       include: [{ model: SaleItem, as: 'items' }],
       order: [['date', 'DESC']]
     });
@@ -70,10 +88,10 @@ router.post('/', async (req, res) => {
 
     if (items && items.length > 0) {
       for (const item of items) {
-        // Omit the 'id' from the item spread because SaleItem has its own auto-increment PK
-        const { id: inventory_id, ...itemData } = item;
+        const inventory_id = item.inventory_id || item.inventoryId || item.id;
+        const { id, inventoryId, ...itemData } = item;
         
-        // Ensure SaleItem mapping is also robust
+        // Ensure SaleItem mapping is robust
         const finalItemData = {
            ...itemData,
            sale_id: sale.id,
@@ -85,21 +103,28 @@ router.post('/', async (req, res) => {
            purchase_price: Number(itemData.purchase_price || itemData.purchasePrice || 0)
         };
 
-        await SaleItem.create(finalItemData, { transaction: t });
-        
-        // Deduct inventory atomically using ID (UUID)
+        // VALIDACIÓN QUIRÚRGICA DE STOCK (PRE-DEDUCCIÓN)
         if (inventory_id) {
+           logger.info(`[SALE] Procesando ítem: ${finalItemData.brand}. Buscando ID de inventario: ${inventory_id}`);
            const inventoryItem = await Inventory.findByPk(inventory_id, { transaction: t });
            
-           if (inventoryItem) {
-             const qty = Number(item.quantity || 1);
-             logger.info(`[SALE] Deducting stock for "${inventoryItem.brand}". Current: ${inventoryItem.currentStock}, Subtracting: ${qty}`);
-             const newStock = Math.max(0, inventoryItem.currentStock - qty);
-             await inventoryItem.update({ currentStock: newStock }, { transaction: t });
-           } else {
-             logger.warn(`[SALE] Inventory item ${inventory_id} not found for deduction`);
+           if (!inventoryItem) {
+             throw new Error(`Artículo del catálogo no encontrado: ${finalItemData.brand} (ID: ${inventory_id})`);
            }
+
+           const requestedQty = Number(itemData.quantity || 1);
+           if (inventoryItem.currentStock < requestedQty) {
+             throw new Error(`Stock insuficiente para "${inventoryItem.brand}". Disponible: ${inventoryItem.currentStock}, Solicitado: ${requestedQty}`);
+           }
+
+           // Deducción Atómica
+           logger.info(`[SALE] Deducting stock for "${inventoryItem.brand}". Current: ${inventoryItem.currentStock}, Sub: ${requestedQty}`);
+           await inventoryItem.update({ 
+             currentStock: inventoryItem.currentStock - requestedQty 
+           }, { transaction: t });
         }
+
+        await SaleItem.create(finalItemData, { transaction: t });
       }
     }
 

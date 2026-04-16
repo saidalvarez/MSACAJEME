@@ -4,11 +4,14 @@ import toast from 'react-hot-toast';
 import { formatCurrency } from '../utils/format';
 import { useStore } from '../store/useStore';
 import type { InventoryItem, Client } from '../types';
+import { pdf } from '@react-pdf/renderer';
+import { SaleReceiptPDF } from '../components/SaleReceiptPDF';
 
 export const NuevaVenta = () => {
     const { inventory: items, clients, addSale } = useStore();
     
     const [searchTerm, setSearchTerm] = useState('');
+    const [activeCategory, setActiveCategory] = useState<'All' | 'Aceite' | 'Refaccion'>('All');
     const [cart, setCart] = useState<{item: InventoryItem, quantity: number, price: number}[]>([]);
 
     // --- Client Selection State ---
@@ -19,10 +22,11 @@ export const NuevaVenta = () => {
 
     // --- Payment Method State ---
     const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'transfer'>('cash');
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const filteredClients = useMemo(() => {
         const search = clientSearch.trim().toLowerCase();
-        if (search.length < 2) return [];
+        if (search.length < 1) return [];
 
         return clients
             .filter(c => {
@@ -72,22 +76,33 @@ export const NuevaVenta = () => {
         setSelectedClient(null);
     };
 
-    const filteredItems = items.filter(item => 
-        item.brand.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        item.type.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredItems = items.filter(item => {
+        const brand = (item.brand || '').toLowerCase();
+        const type = (item.type || '').toLowerCase();
+        const search = searchTerm.toLowerCase();
+        
+        const matchesSearch = brand.includes(search) || type.includes(search);
+        
+        const itemCat = item.category || 'Aceite'; // Default legacy items to Aceite
+        const matchesCategory = activeCategory === 'All' || itemCat === activeCategory;
+        
+        return matchesSearch && matchesCategory;
+    });
 
     const addToCart = (item: InventoryItem) => {
         const existing = cart.find(c => c.item.id === item.id);
-        const currentStock = item.current_stock ?? item.currentStock;
+        const physicalStock = item.currentStock ?? 0;
+        const reservedStock = item.reservedStock ?? 0;
+        const availableStock = physicalStock - reservedStock;
+
         if (existing) {
-            if (existing.quantity >= currentStock) {
-                toast.error(`Solo hay ${currentStock} unidades disponibles en inventario.`);
+            if (existing.quantity >= availableStock) {
+                toast.error(`Solo hay ${availableStock} unidades disponibles (libres de reserva).`);
                 return;
             }
             setCart(cart.map(c => c.item.id === item.id ? { ...c, quantity: c.quantity + 1 } : c));
         } else {
-            if (currentStock <= 0) {
+            if (availableStock <= 0) {
                 toast.error('Producto agotado');
                 return;
             }
@@ -99,9 +114,12 @@ export const NuevaVenta = () => {
         setCart(cart.map(c => {
             if (c.item.id === id) {
                 const newQuantity = c.quantity + delta;
-                const currentStock = c.item.current_stock ?? c.item.currentStock;
-                if (newQuantity > currentStock) {
-                    toast.error('Stock insuficiente');
+                const physicalStock = c.item.currentStock ?? 0;
+                const reservedStock = c.item.reservedStock ?? 0;
+                const availableStock = physicalStock - reservedStock;
+
+                if (newQuantity > availableStock) {
+                    toast.error('Stock insuficiente (considerando reservas)');
                     return c;
                 }
                 return newQuantity > 0 ? { ...c, quantity: newQuantity } : c;
@@ -114,7 +132,7 @@ export const NuevaVenta = () => {
         const newQuantity = parseInt(value) || 0;
         setCart(cart.map(c => {
             if (c.item.id === id) {
-                const currentStock = c.item.current_stock ?? c.item.currentStock;
+                const currentStock = c.item.currentStock ?? 0;
                 if (newQuantity > currentStock) {
                     toast.error(`Stock máximo: ${currentStock}`);
                     return { ...c, quantity: currentStock };
@@ -138,7 +156,7 @@ export const NuevaVenta = () => {
     const totalProfit = totalSale - totalCost;
 
     const handleCheckout = async () => {
-        if (cart.length === 0) return;
+        if (cart.length === 0 || isProcessing) return;
 
         // Verify prices
         for (const c of cart) {
@@ -148,26 +166,62 @@ export const NuevaVenta = () => {
             }
         }
 
-        // Registrar venta (ÚNICA fuente de verdad para ingresos e inventario)
-        await addSale({
-            client_id: selectedClient?.id,
-            clientName: selectedClient ? selectedClient.name : 'Público General',
-            total: totalSale,
-            paymentMethod: paymentMethod,
-            items: cart.map(c => ({
-                id: c.item.id,
-                brand: c.item.brand,
-                viscosity: c.item.viscosity,
-                type: c.item.type,
-                quantity: c.quantity,
-                price: c.price,
-                purchase_price: c.item.purchasePrice || 0
-            }))
-        });
+        setIsProcessing(true);
+        try {
+            // Registrar venta
+            const saleResult = await addSale({
+                client_id: selectedClient?.id,
+                clientName: selectedClient ? selectedClient.name : 'Público General',
+                total: totalSale,
+                paymentMethod: paymentMethod,
+                items: cart.map(c => ({
+                    id: c.item.id,
+                    brand: c.item.brand,
+                    viscosity: c.item.viscosity,
+                    type: c.item.type,
+                    quantity: c.quantity,
+                    price: c.price,
+                    purchase_price: c.item.purchasePrice || (c.item as any).purchase_price || 0
+                }))
+            });
 
-        toast.success('¡Venta registrada con éxito!');
-        setCart([]);
-        handleClearClient();
+            // GENERACIÓN DE TICKET PDF (ESTILO PLATINUM)
+            try {
+                const document = <SaleReceiptPDF sale={saleResult} />;
+                const blob = await pdf(document).toBlob();
+                const filename = `Ticket_Venta_${String(saleResult.id).slice(0, 8).toUpperCase()}.pdf`;
+                
+                // Intentar guardado nativo si estamos en Tauri
+                try {
+                    const { invoke } = await import('@tauri-apps/api/core');
+                    const buffer = await blob.arrayBuffer();
+                    const bytes = Array.from(new Uint8Array(buffer));
+                    await invoke('save_pdf_to_desktop', { bytes, filename });
+                    toast.success('Ticket guardado en Escritorio');
+                } catch (tauriErr) {
+                    // Fallback para navegador
+                    const url = URL.createObjectURL(blob);
+                    const link = window.document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                }
+            } catch (pdfErr) {
+                console.error("Error generando PDF de venta:", pdfErr);
+                toast.error("Venta registrada, pero falló la descarga del ticket.");
+            }
+
+            toast.success('¡Venta registrada con éxito!', { icon: '💰' });
+            setCart([]);
+            handleClearClient();
+        } catch (error: any) {
+            console.error("Error en Checkout:", error);
+            const serverMsg = error.response?.data?.details || error.response?.data?.error || error.message;
+            toast.error(serverMsg || 'Error al procesar la venta');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     return (
@@ -218,44 +272,69 @@ export const NuevaVenta = () => {
                     </div>
 
                     <div className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 h-full flex flex-col">
-                        <div className="relative mb-3">
-                            <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                            <input 
-                                type="text" 
-                                placeholder="Buscar en inventario..." 
-                                className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold uppercase tracking-wider outline-none focus:border-emerald-500 transition-all placeholder:text-slate-300"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+                        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                                <input 
+                                    type="text" 
+                                    placeholder="Buscar en inventario..." 
+                                    className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-semibold uppercase tracking-wider outline-none focus:border-emerald-500 transition-all placeholder:text-slate-300"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex bg-gray-100 p-1 rounded-lg gap-1 border border-gray-200">
+                                <button 
+                                    onClick={() => setActiveCategory('All')} 
+                                    className={`px-3 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${activeCategory === 'All' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Todos
+                                </button>
+                                <button 
+                                    onClick={() => setActiveCategory('Aceite')} 
+                                    className={`px-3 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${activeCategory === 'Aceite' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Aceites
+                                </button>
+                                <button 
+                                    onClick={() => setActiveCategory('Refaccion')} 
+                                    className={`px-3 py-1 rounded-md text-[9px] font-bold uppercase transition-all ${activeCategory === 'Refaccion' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                    Refacciones
+                                </button>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto pr-2 max-h-[600px]">
-                            {filteredItems.filter(item => (item.current_stock ?? item.currentStock) > 0).length === 0 ? (
+                            {filteredItems.filter(item => (item.currentStock ?? 0) > 0).length === 0 ? (
                                 <div className="col-span-full py-10 text-center text-gray-400 font-medium">
                                     No hay productos disponibles en el inventario.
                                 </div>
                             ) : (
-                                filteredItems.filter(item => (item.current_stock ?? item.currentStock) > 0).map(item => (
-                                    <div 
-                                        key={item.id} 
-                                        onClick={() => addToCart(item)}
-                                        className="bg-white border border-gray-200 rounded-lg p-2 cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all flex flex-col items-center text-center group relative overflow-hidden"
-                                    >
-                                        <div className="absolute top-0 right-0 bg-emerald-50 text-emerald-600 text-[8px] font-bold px-1.5 py-0.5 rounded-bl-md border-b border-l border-emerald-100">
-                                            {item.current_stock ?? item.currentStock}
-                                        </div>
-                                        
-                                        <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 mb-2 overflow-hidden group-hover:scale-105 transition-transform">
-                                            {item.image ? (
-                                                <img src={item.image} alt={item.brand} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <Package className="text-slate-300" size={18} />
-                                            )}
-                                        </div>
-                                        <h3 className="font-semibold text-slate-800 text-[10px] uppercase tracking-tight line-clamp-1">{item.brand}</h3>
-                                        <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-tighter">{item.category === 'Refaccion' ? item.type : `${item.viscosity} · ${item.type}`}</p>
-                                    </div>
-                                ))
+                                    filteredItems.filter(item => ((item.currentStock ?? 0) - (item.reservedStock ?? 0)) > 0).map(item => {
+                                        const available = (item.currentStock ?? 0) - (item.reservedStock ?? 0);
+                                        return (
+                                            <div 
+                                                key={item.id} 
+                                                onClick={() => addToCart(item)}
+                                                className="bg-white border border-gray-200 rounded-lg p-2 cursor-pointer hover:border-emerald-500 hover:shadow-md transition-all flex flex-col items-center text-center group relative overflow-hidden"
+                                            >
+                                                <div className={`absolute top-0 right-0 text-[8px] font-bold px-1.5 py-0.5 rounded-bl-md border-b border-l ${available <= 5 ? 'bg-danger-50 text-danger-600 border-danger-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
+                                                    {available}
+                                                </div>
+                                                
+                                                <div className="w-12 h-12 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100 mb-2 overflow-hidden group-hover:scale-105 transition-transform">
+                                                    {item.image ? (
+                                                        <img src={item.image} alt={item.brand} className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <Package className="text-slate-300" size={18} />
+                                                    )}
+                                                </div>
+                                                <h3 className="font-semibold text-slate-800 text-[10px] uppercase tracking-tight line-clamp-1">{item.brand}</h3>
+                                                <p className="text-[8px] font-semibold text-slate-400 uppercase tracking-tighter">{item.category === 'Refaccion' ? item.type : `${item.viscosity} · ${item.type}`}</p>
+                                            </div>
+                                        );
+                                    })
                             )}
                         </div>
                     </div>
@@ -304,11 +383,9 @@ export const NuevaVenta = () => {
                                                     <span className="absolute left-2 top-1.5 text-gray-500 text-xs">$</span>
                                                     <input 
                                                         type="number" 
-                                                        min="0"
-                                                        value={c.price || ''}
-                                                        onChange={(e) => updatePrice(c.item.id, parseFloat(e.target.value) || 0)}
-                                                        placeholder="Precio"
-                                                        className="w-full border border-gray-200 rounded-md py-1 pl-5 pr-2 text-sm font-semibold text-right outline-none focus:border-emerald-500 shadow-sm"
+                                                        value={c.price || 0}
+                                                        readOnly
+                                                        className="w-full border border-emerald-100 bg-emerald-50/50 cursor-not-allowed rounded-md py-1 pl-5 pr-2 text-sm font-black text-emerald-800 text-right outline-none shadow-sm"
                                                     />
                                                 </div>
                                             </div>

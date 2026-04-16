@@ -9,6 +9,7 @@ class Inventory extends Model {
   declare category: string;
   declare initialStock: number;
   declare currentStock: number;
+  declare reservedStock: number;
   declare purchaseNumber: string;
   declare image: string;
   declare purchasePrice: number;
@@ -50,6 +51,11 @@ Inventory.init({
     type: DataTypes.INTEGER,
     defaultValue: 0,
     field: 'current_stock'
+  },
+  reservedStock: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    field: 'reserved_stock'
   },
   purchaseNumber: {
     type: DataTypes.STRING,

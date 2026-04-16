@@ -266,6 +266,14 @@ sequelize.authenticate()
         await sequelize.query(`ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "is_archived" BOOLEAN DEFAULT false;`).catch(()=>null);
       }
 
+      // Raphael: Inyectar campos editables nativos para Clientes
+      await sequelize.query(`ALTER TABLE "clients" ADD COLUMN IF NOT EXISTS "notes" TEXT;`).catch(()=>null);
+      await sequelize.query(`ALTER TABLE "clients" ADD COLUMN IF NOT EXISTS "benefits" TEXT;`).catch(()=>null);
+
+      // Raphael: Inyectar quirúrgicamente las nuevas capacidades de Inventario (OT + Barras)
+      await sequelize.query(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "reserved_stock" INTEGER DEFAULT 0;`).catch(()=>null);
+      await sequelize.query(`ALTER TABLE "inventory" ADD COLUMN IF NOT EXISTS "barcode" VARCHAR(255);`).catch(()=>null);
+
       // Ensure audit_logs id is autoincrement (this is tricky in postgres, but if it exists as integer, it won't auto-increment if not serial. We will alter its mapping or default value)
       // A quick fix for audit_logging id constraint error is just to use a sequence.
       await sequelize.query(`CREATE SEQUENCE IF NOT EXISTS audit_logs_id_seq;`).catch(()=>null);
