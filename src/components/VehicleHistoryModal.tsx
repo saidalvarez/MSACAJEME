@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, X, Calendar, ClipboardList, PenTool as Tool, ChevronRight, Car } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import React, { useState, useEffect } from 'react';
+import { Search, X, ClipboardList, PenTool as Tool, Car } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 
 interface VehicleHistoryModalProps {
@@ -12,7 +11,6 @@ export const VehicleHistoryModal: React.FC<VehicleHistoryModalProps> = ({ isOpen
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { loadTickets } = useStore();
 
   useEffect(() => {
     if (searchTerm.length >= 3) {

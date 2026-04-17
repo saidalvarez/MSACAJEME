@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { 
   Search, Plus, Trash2, Save, X, Phone, Image as ImageIcon, 
-  CheckCircle, MessageCircle, FileText, Mail, RefreshCw, AlertTriangle, ShoppingCart, DollarSign, ChevronRight, UserPlus
+  CheckCircle, MessageCircle, FileText, Mail, RefreshCw, AlertTriangle, ShoppingCart, DollarSign, ChevronRight, UserPlus, TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { pdf } from '@react-pdf/renderer';
@@ -794,7 +794,7 @@ export const NuevoTicket = () => {
                     </div>
                     
                     <div className="flex justify-between items-center px-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1.5"><TrendingUp size={11} strokeWidth={3} /> Ganancia Total Taller</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1.5"><TrendingUp size={11} strokeWidth={3} /> Utilidades</span>
                         <span className="font-bold text-lg text-emerald-600">+{formatCurrency(items.reduce((sum, item) => sum + (((item.price || 0) - (item.purchase_price || 0)) * (item.quantity || 1)), 0))}</span>
                     </div>
                     

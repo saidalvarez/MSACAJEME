@@ -42,25 +42,37 @@ fn get_db_config(handle: tauri::AppHandle) -> Result<DbConfig, String> {
 }
 
 #[tauri::command]
-fn save_pdf_to_desktop(handle: tauri::AppHandle, bytes: Vec<u8>, filename: String, folder: Option<String>) -> Result<String, String> {
+fn save_pdf_to_desktop(
+    handle: tauri::AppHandle,
+    bytes: Vec<u8>,
+    filename: String,
+    folder: Option<String>,
+) -> Result<String, String> {
     let desktop_dir = handle.path().desktop_dir().map_err(|e| e.to_string())?;
-    
+
     // Predeterminado a COTIZACIONES si no se especifica carpeta
     let folder_name = folder.unwrap_or_else(|| "COTIZACIONES".to_string());
     let target_dir = desktop_dir.join(&folder_name);
-    
+
     std::fs::create_dir_all(&target_dir).map_err(|e| e.to_string())?;
-    
+
     let file_path = target_dir.join(filename);
     std::fs::write(&file_path, bytes).map_err(|e| e.to_string())?;
-    
+
     Ok(file_path.to_str().unwrap_or("Archivo guardado").to_string())
 }
 
 fn find_sidecar(handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     // Strategy 1: Tauri resource resolver (production installs)
-    if let Ok(path) = handle.path().resolve("bin/msa-server.exe", tauri::path::BaseDirectory::Resource) {
-        log::info!("[SIDECAR] Strategy 1 (resolve): {:?} exists={}", path, path.exists());
+    if let Ok(path) = handle
+        .path()
+        .resolve("bin/msa-server.exe", tauri::path::BaseDirectory::Resource)
+    {
+        log::info!(
+            "[SIDECAR] Strategy 1 (resolve): {:?} exists={}",
+            path,
+            path.exists()
+        );
         if path.exists() {
             return Some(path);
         }
@@ -69,7 +81,11 @@ fn find_sidecar(handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     // Strategy 2: resource_dir + bin/ (alternative production layout)
     if let Ok(res_dir) = handle.path().resource_dir() {
         let path = res_dir.join("bin").join("msa-server.exe");
-        log::info!("[SIDECAR] Strategy 2 (resource_dir): {:?} exists={}", path, path.exists());
+        log::info!(
+            "[SIDECAR] Strategy 2 (resource_dir): {:?} exists={}",
+            path,
+            path.exists()
+        );
         if path.exists() {
             return Some(path);
         }
@@ -79,13 +95,21 @@ fn find_sidecar(handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let path = exe_dir.join("bin").join("msa-server.exe");
-            log::info!("[SIDECAR] Strategy 3 (exe_dir/bin): {:?} exists={}", path, path.exists());
+            log::info!(
+                "[SIDECAR] Strategy 3 (exe_dir/bin): {:?} exists={}",
+                path,
+                path.exists()
+            );
             if path.exists() {
                 return Some(path);
             }
             // Also check directly next to exe
             let path2 = exe_dir.join("msa-server.exe");
-            log::info!("[SIDECAR] Strategy 3b (exe_dir): {:?} exists={}", path2, path2.exists());
+            log::info!(
+                "[SIDECAR] Strategy 3b (exe_dir): {:?} exists={}",
+                path2,
+                path2.exists()
+            );
             if path2.exists() {
                 return Some(path2);
             }
@@ -94,7 +118,11 @@ fn find_sidecar(handle: &tauri::AppHandle) -> Option<std::path::PathBuf> {
 
     // Strategy 4: Current working directory (development)
     let cwd_path = std::path::PathBuf::from("bin").join("msa-server.exe");
-    log::info!("[SIDECAR] Strategy 4 (cwd): {:?} exists={}", cwd_path, cwd_path.exists());
+    log::info!(
+        "[SIDECAR] Strategy 4 (cwd): {:?} exists={}",
+        cwd_path,
+        cwd_path.exists()
+    );
     if cwd_path.exists() {
         return Some(cwd_path);
     }
@@ -107,7 +135,7 @@ fn start_sidecar(handle: &tauri::AppHandle) {
     // Read config
     let app_dir = handle.path().app_data_dir().unwrap_or_default();
     let config_path = app_dir.join("db_config.json");
-    
+
     let config: DbConfig = if config_path.exists() {
         if let Ok(json) = fs::read_to_string(config_path) {
             serde_json::from_str(&json).unwrap_or_default()
@@ -128,7 +156,9 @@ fn start_sidecar(handle: &tauri::AppHandle) {
     let resource_path = match find_sidecar(handle) {
         Some(path) => path,
         None => {
-            log::error!("[TAURI] CRITICAL: Cannot find msa-server.exe. The backend will not start.");
+            log::error!(
+                "[TAURI] CRITICAL: Cannot find msa-server.exe. The backend will not start."
+            );
             return;
         }
     };
@@ -152,20 +182,29 @@ fn start_sidecar(handle: &tauri::AppHandle) {
         .env("PORT", "3001")
         .env("MSA_LOG_DIR", log_dir.to_str().unwrap_or_default())
         .env("MSA_BACKUP_DIR", backup_dir.to_str().unwrap_or_default())
-        .env("JWT_SECRET", "msa_cjm_9f4b2e7a1d8c3f5e6b0a4d7c9e2f1a8b5d3c6e0f7a9b2d4e6f8a1c3d5e7f9a0")
-        .env("JWT_REFRESH_SECRET", "msa_ref_a7c3e9f1b5d2a8c4e0f6b3d9a5c1e7f3b9d5a1c7e3f9b5d1a7c3e9f5b1d7a3e9");
+        .env(
+            "JWT_SECRET",
+            "msa_cjm_9f4b2e7a1d8c3f5e6b0a4d7c9e2f1a8b5d3c6e0f7a9b2d4e6f8a1c3d5e7f9a0",
+        )
+        .env(
+            "JWT_REFRESH_SECRET",
+            "msa_ref_a7c3e9f1b5d2a8c4e0f6b3d9a5c1e7f3b9d5a1c7e3f9b5d1a7c3e9f5b1d7a3e9",
+        );
 
     #[cfg(target_os = "windows")]
     let cmd = cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
 
-    match cmd.spawn()
-    {
+    match cmd.spawn() {
         Ok(child) => {
             let pid = child.id();
             if let Some(state) = handle.try_state::<SidecarState>() {
                 let mut lock = state.0.lock().unwrap();
                 *lock = Some(child);
-                log::info!("[TAURI] Sidecar server started (PID: {}). Logs: {:?}", pid, log_dir);
+                log::info!(
+                    "[TAURI] Sidecar server started (PID: {}). Logs: {:?}",
+                    pid,
+                    log_dir
+                );
             }
         }
         Err(e) => {
@@ -185,7 +224,10 @@ fn kill_sidecar(state: &SidecarState) {
 }
 
 #[tauri::command]
-fn restart_sidecar(handle: tauri::AppHandle, state: tauri::State<'_, SidecarState>) -> Result<(), String> {
+fn restart_sidecar(
+    handle: tauri::AppHandle,
+    state: tauri::State<'_, SidecarState>,
+) -> Result<(), String> {
     log::info!("[TAURI] Restarting sidecar...");
     kill_sidecar(&state);
     start_sidecar(&handle);
@@ -195,14 +237,22 @@ fn restart_sidecar(handle: tauri::AppHandle, state: tauri::State<'_, SidecarStat
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build())
+        .plugin(
+            tauri_plugin_log::Builder::default()
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .manage(SidecarState(Mutex::new(None)))
-        .invoke_handler(tauri::generate_handler![save_db_config, get_db_config, restart_sidecar, save_pdf_to_desktop])
+        .invoke_handler(tauri::generate_handler![
+            save_db_config,
+            get_db_config,
+            restart_sidecar,
+            save_pdf_to_desktop
+        ])
         .setup(|app| {
             let handle = app.handle().clone();
             // Launch sidecar in a background thread to NOT block the UI

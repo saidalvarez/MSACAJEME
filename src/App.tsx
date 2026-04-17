@@ -12,6 +12,7 @@ import { NuevaVenta } from './views/NuevaVenta';
 import { Configuracion as SettingsView } from './views/Configuracion';
 import { InicioSesion } from './views/InicioSesion';
 import { Historial } from './views/Historial';
+import { Utilidades } from './views/Utilidades';
 import { Monitor } from './views/Monitor';
 import { useStore } from './store/useStore';
 import { Notas } from './views/Notas';
@@ -264,6 +265,7 @@ function App() {
             <Route path="clientes/:id" element={<DetalleCliente />} />
             <Route path="bitacora" element={<Historial />} />
             <Route path="finanzas" element={<Finanzas />} />
+            <Route path="utilidades" element={<Utilidades />} />
             <Route path="inventario" element={<Inventario />} />
             <Route path="notas" element={<Notas />} />
             <Route path="monitor" element={<Monitor />} />

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import {
   Search, Plus, FileText,
-  CheckCircle, RefreshCw, Trash2, ChevronLeft, ChevronRight, Download, Edit2, Mail, Clock, X, DollarSign
+  CheckCircle, RefreshCw, Trash2, ChevronLeft, ChevronRight, Edit2, Mail, Clock, X, DollarSign
 } from 'lucide-react';
 import { pdf } from '@react-pdf/renderer';
 import toast from 'react-hot-toast';
@@ -54,8 +54,9 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                 const a = window.document.createElement('a');
                 a.href = url;
                 a.download = filename;
+                window.document.body.appendChild(a);
                 a.click();
-                URL.revokeObjectURL(url);
+                setTimeout(() => { window.document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
             }
             toast.success("PDF descargado. Adjúntalo en el chat de WhatsApp.", { duration: 4000 });
         } catch (error) {
@@ -116,8 +117,9 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                 const a = window.document.createElement('a');
                 a.href = url;
                 a.download = filename;
+                window.document.body.appendChild(a);
                 a.click();
-                URL.revokeObjectURL(url);
+                setTimeout(() => { window.document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
             }
         } catch (error) {
             console.error("Error generating PDF:", error);
@@ -144,9 +146,11 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                 console.error("Fallo al guardar nativamente la utilidad", e);
                 const url = URL.createObjectURL(blob);
                 const a = window.document.createElement('a');
+                a.href = url;
                 a.download = filename;
+                window.document.body.appendChild(a);
                 a.click();
-                URL.revokeObjectURL(url);
+                setTimeout(() => { window.document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
             }
         } catch (error) {
             console.error("Error generating Profit PDF:", error);
@@ -173,6 +177,7 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                     </span>
                     <h4 className="font-bold text-sm text-slate-800 truncate pr-2 max-w-[200px] shrink-0">
                         {ticket.client_name || ticket.clientName}
+                        {ticket.vehicle ? ` / ${ticket.vehicle}` : ''}
                     </h4>
                     
                     <div className="hidden sm:flex items-center gap-2 overflow-hidden flex-1">
@@ -240,6 +245,7 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
 
                         <h4 className="font-bold text-lg text-slate-800 mb-3 truncate">
                             {ticket.client_name || ticket.clientName}
+                            {ticket.vehicle ? ` / ${ticket.vehicle}` : ''}
                         </h4>
 
                         <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -300,34 +306,36 @@ const ServiceCard = memo(({ ticket, handleDelete, handleToggleStatus, handleZoom
                     </div>
 
                     <div className="flex items-center bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden divide-x divide-slate-100">
-                        <button onClick={handleDownload} disabled={isGenerating} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-slate-500 hover:bg-slate-50 hover:text-primary-600 transition-colors bg-slate-50/50" title="Descargar Cotización (Público)">
-                            {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={14} />}
+                        <button onClick={handleDownload} disabled={isGenerating} className="flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-slate-500 hover:bg-slate-50 hover:text-primary-600 transition-colors bg-slate-50/50" title="Descargar Cotización (Público)">
+                            {isGenerating ? <RefreshCw size={16} className="animate-spin" /> : <FileText size={16} />}
+                            <span className="text-[9px] font-bold uppercase tracking-wider hidden lg:inline">Cotización Cliente</span>
                         </button>
-                        <button onClick={handleDownloadProfit} disabled={isGeneratingProfit} className="flex-1 flex justify-center items-center gap-1.5 px-3 py-2 text-slate-500 hover:bg-emerald-50 hover:text-emerald-600 transition-colors bg-slate-50/50" title="Descargar Utilidad Taller">
-                            {isGeneratingProfit ? <RefreshCw size={14} className="animate-spin text-emerald-600" /> : <DollarSign size={14} className="text-emerald-600" />}
+                        <button onClick={handleDownloadProfit} disabled={isGeneratingProfit} className="flex-1 flex justify-center items-center gap-2 px-4 py-2.5 text-emerald-600 hover:bg-emerald-50 transition-colors bg-slate-50/50" title="Descargar Utilidad Taller">
+                            {isGeneratingProfit ? <RefreshCw size={16} className="animate-spin text-emerald-600" /> : <DollarSign size={16} className="text-emerald-600" />}
+                            <span className="text-[9px] font-bold uppercase tracking-wider hidden lg:inline">Utilidades</span>
                         </button>
-                        <button onClick={handleWhatsApp} className="flex-1 px-3 py-2 text-slate-500 hover:bg-[#25D366]/10 hover:text-[#25D366] transition-colors flex justify-center items-center bg-slate-50/50" title="WhatsApp Business">
-                            <WhatsAppIcon size={14} />
+                        <button onClick={handleWhatsApp} className="flex-1 px-3 py-2.5 text-slate-500 hover:bg-[#25D366]/10 hover:text-[#25D366] transition-colors flex justify-center items-center bg-slate-50/50" title="WhatsApp Business">
+                            <WhatsAppIcon size={16} />
                         </button>
-                        <button onClick={handleEmail} className="flex-1 px-3 py-2 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-colors flex justify-center items-center bg-slate-50/50" title="Email">
-                            <Mail size={14} />
+                        <button onClick={handleEmail} className="flex-1 px-3 py-2.5 text-slate-500 hover:bg-blue-50 hover:text-blue-600 transition-colors flex justify-center items-center bg-slate-50/50" title="Email">
+                            <Mail size={16} />
                         </button>
-                        <Link to={`/editar/${ticket.id}`} className="px-3 py-2 text-slate-500 hover:bg-orange-50 hover:text-orange-600 transition-colors flex justify-center items-center bg-slate-50/50" title="Editar">
-                            <Edit2 size={14} />
+                        <Link to={`/editar/${ticket.id}`} className="px-3 py-2.5 text-slate-500 hover:bg-orange-50 hover:text-orange-600 transition-colors flex justify-center items-center bg-slate-50/50" title="Editar">
+                            <Edit2 size={16} />
                         </Link>
                         <button 
                             onClick={() => handleToggleStatus(ticket.id, ticket.status)} 
-                            className={`px-3 py-2 transition-colors flex justify-center items-center ${ticket.status === 'completed' ? 'text-success-600 bg-success-50 hover:bg-success-100' : 'text-slate-500 hover:bg-slate-50 hover:text-success-600 bg-slate-50/50'}`} 
+                            className={`px-3 py-2.5 transition-colors flex justify-center items-center ${ticket.status === 'completed' ? 'text-success-600 bg-success-50 hover:bg-success-100' : 'text-slate-500 hover:bg-slate-50 hover:text-success-600 bg-slate-50/50'}`} 
                             title="Cambiar Estado"
                         >
-                            <CheckCircle size={14} />
+                            <CheckCircle size={16} />
                         </button>
                         <button 
                             onClick={() => ticket._isOffline ? removePendingTicket(ticket.id) : handleDelete(ticket.id)} 
-                            className="px-3 py-2 text-slate-500 hover:bg-danger-50 hover:text-danger-600 transition-colors flex justify-center items-center bg-slate-50/50" 
+                            className="px-3 py-2.5 text-slate-500 hover:bg-danger-50 hover:text-danger-600 transition-colors flex justify-center items-center bg-slate-50/50" 
                             title={ticket._isOffline ? "Descartar Ticket Atorado" : "Eliminar Registro"}
                         >
-                            <Trash2 size={14} />
+                            <Trash2 size={16} />
                         </button>
                     </div>
                 </div>

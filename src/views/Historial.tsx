@@ -1,7 +1,7 @@
 import { useState, memo } from 'react';
 import { 
   FileText, RefreshCw,
-  Download, Clock, Search, Trash2, DollarSign
+  Clock, Search, Trash2, DollarSign
 } from 'lucide-react';
 import { pdf } from '@react-pdf/renderer';
 import toast from 'react-hot-toast';
@@ -89,6 +89,7 @@ const HistoryCard = memo(({ ticket, onDelete }: { ticket: HistoryTicket, onDelet
             toast.error(`Error al generar documento: ${err.message || 'Error de renderizado'}`, { id: 'pdf-historial' });
         } finally {
             setIsGenerating(false);
+        }
     };
 
     const handleDownloadProfit = async () => {
@@ -172,11 +173,11 @@ const HistoryCard = memo(({ ticket, onDelete }: { ticket: HistoryTicket, onDelet
                 </div>
 
                 <div className="flex items-center gap-2">
-                     <button onClick={handleDownload} disabled={isGenerating} title="Descargar PDF (Público)" className="px-3 py-2 flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-all active:scale-95 text-[10px] font-bold uppercase tracking-widest shadow-sm">
-                        {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={14} />} PDF
+                     <button onClick={handleDownload} disabled={isGenerating} title="Cotización Cliente" className="px-3 py-2 flex items-center gap-2 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 hover:bg-slate-50 rounded-lg transition-all active:scale-95 text-[9px] font-bold uppercase tracking-widest shadow-sm">
+                        {isGenerating ? <RefreshCw size={14} className="animate-spin" /> : <FileText size={16} />} Cotización
                      </button>
-                     <button onClick={handleDownloadProfit} disabled={isGeneratingProfit} title="Descargar PDF Utilidad" className="px-3 py-2 flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-all active:scale-95 text-[10px] font-bold uppercase tracking-widest shadow-sm">
-                        {isGeneratingProfit ? <RefreshCw size={14} className="animate-spin" /> : <DollarSign size={14} />} UT (T)
+                     <button onClick={handleDownloadProfit} disabled={isGeneratingProfit} title="Utilidades Taller" className="px-3 py-2 flex items-center gap-2 bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-all active:scale-95 text-[9px] font-bold uppercase tracking-widest shadow-sm">
+                        {isGeneratingProfit ? <RefreshCw size={14} className="animate-spin" /> : <DollarSign size={16} />} Utilidades
                      </button>
                      <button onClick={handleWhatsApp} title="Enviar WhatsApp" className="w-9 h-9 flex items-center justify-center bg-emerald-50 text-emerald-600 border border-emerald-100 hover:bg-emerald-100 rounded-lg transition-all active:scale-95 shadow-sm">
                         <WhatsAppIcon size={16} />

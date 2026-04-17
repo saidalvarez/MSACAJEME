@@ -143,10 +143,6 @@ export const NuevaVenta = () => {
         }));
     };
 
-    const updatePrice = (id: string, newPrice: number) => {
-        setCart(cart.map(c => c.item.id === id ? { ...c, price: newPrice } : c));
-    };
-
     const removeFromCart = (id: string) => {
         setCart(cart.filter(c => c.item.id !== id));
     };

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, PlusCircle, ShoppingCart, Settings, 
-  Users, DollarSign, Package, LogOut, FileText, StickyNote, Activity 
+  Users, DollarSign, Package, LogOut, FileText, StickyNote, Activity, TrendingUp 
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,6 +54,11 @@ export const Sidebar = ({ onLogout }: SidebarProps) => {
         <Link to="/nuevo" className={linkClass('/nuevo')}>
           <PlusCircle size={16} /> 
           <span>Nuevo Servicio</span>
+        </Link>
+
+        <Link to="/utilidades" className={linkClass('/utilidades')}>
+          <TrendingUp size={16} /> 
+          <span>Utilidades</span>
         </Link>
         
         <Link to="/nueva-venta" className={linkClass('/nueva-venta')}>

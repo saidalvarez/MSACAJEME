@@ -14,7 +14,11 @@ export const Breadcrumbs = () => {
     'finanzas': 'Control de Finanzas',
     'configuracion': 'Ajustes del Sistema',
     'historial': 'Historial de Servicios',
-    'nueva-venta': 'Venta Directa'
+    'nueva-venta': 'Venta Directa',
+    'utilidades': 'Análisis de Utilidades',
+    'bitacora': 'Bitácora Histórica',
+    'notas': 'Notas del Taller',
+    'monitor': 'Monitor del Sistema'
   };
 
   return (

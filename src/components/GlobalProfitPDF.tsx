@@ -94,9 +94,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     backgroundColor: '#1e293b',
     color: '#ffffff',
-    padding: 8,
+    padding: 12,
     fontFamily: 'Helvetica-Bold',
-    fontSize: 9,
+    fontSize: 11,
     marginTop: 10,
     textTransform: 'uppercase'
   },
@@ -104,8 +104,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
-    padding: 8,
-    fontSize: 9,
+    padding: 12,
+    fontSize: 11,
     alignItems: 'center',
   },
   colConcept: { flex: 4 },
@@ -118,17 +118,19 @@ const styles = StyleSheet.create({
   // -- Group Headers --
   groupHeader: {
     backgroundColor: '#f1f5f9',
-    padding: 6,
+    padding: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     fontFamily: 'Helvetica-Bold',
-    fontSize: 10,
-    marginTop: 5,
+    fontSize: 12,
+    marginTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
   groupSummary: {
-    fontFamily: 'Helvetica',
-    fontSize: 9,
-    color: '#64748b'
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 11,
+    color: '#059669' // Green color for profit to stand out
   },
   redBanner: {
     backgroundColor: '#059669',
@@ -180,7 +182,7 @@ export const GlobalProfitPDF = ({ title, dateStr, totals, items }: GlobalProfitP
             <Text style={styles.summaryValue}>${formatNum(totals.revenue)}</Text>
           </View>
           <View style={styles.summaryCol}>
-             <Text style={styles.summaryLabel}>Costo Taller</Text>
+             <Text style={styles.summaryLabel}>Gasto Operativo</Text>
              <Text style={styles.summaryValue}>${formatNum(totals.cost)}</Text>
           </View>
           <View style={styles.summaryColEmerald}>
@@ -197,7 +199,7 @@ export const GlobalProfitPDF = ({ title, dateStr, totals, items }: GlobalProfitP
         <View style={styles.tableHeader}>
           <Text style={styles.colConcept}>Folio / Concepto</Text>
           <Text style={styles.colQty}>Cant.</Text>
-          <Text style={styles.colCost}>Costo</Text>
+          <Text style={styles.colCost}>Gasto</Text>
           <Text style={styles.colTurnover}>Venta</Text>
           <Text style={styles.colProfit}>Utilidad</Text>
           <Text style={styles.colMargin}>Mg%</Text>

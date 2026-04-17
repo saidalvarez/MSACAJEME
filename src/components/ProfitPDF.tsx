@@ -324,7 +324,7 @@ export const ProfitPDF = ({ quote, formatType = 'basic' }: ProfitPDFProps) => {
         {/* WATERMARK QUITADA A PETICIÓN */}
 
         {/* FRANJA ROJA SUPERIOR ESTILO DISEÑO */}
-        <View style={styles.topRedBanner} />
+        <View style={styles.topEmeraldBanner} />
 
         {/* ENCABEZADO */}
         <View style={styles.headerRow}>

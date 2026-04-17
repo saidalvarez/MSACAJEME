@@ -1,23 +1,38 @@
 import { useState, useMemo } from 'react';
-import { Search, UserPlus, Phone, Trash2, Edit2, Users, Award, Star, Shield, Crown, Info, X, Calendar, CheckCircle2, MessageCircle, Clock, Activity, TrendingUp, PlusCircle, FileText } from 'lucide-react';
+import { Search, UserPlus, Phone, Trash2, Edit2, Users, Award, Star, Shield, Crown, Info, X, Calendar, CheckCircle2, MessageCircle, Clock, Activity, TrendingUp, PlusCircle, FileText, Save } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import { ClientModal } from '../components/ClientModal';
+import { ClientBenefitsModal } from '../components/ClientBenefitsModal';
 import { DangerModal } from '../components/DangerModal';
 import toast from 'react-hot-toast';
 import { useStore } from '../store/useStore';
 import { Breadcrumbs } from '../components/ui/Breadcrumbs';
+
+const DEFAULT_RANKS_CONFIG = {
+  black: { desc: 'Para los clientes más constantes (+10 servicios) o que han confiado grandes proyectos con nosotros.', perk: 'Encerado Premium / Lavado Completo Gratis de Cortesía' },
+  platinum: { desc: 'El estándar de excelencia. A partir de 5 visitas al taller.', perk: 'Revisión Integral de 20 Puntos + Escáner Sin Costo' },
+  gold: { desc: 'Otorgado tras tu 2do servicio con nosotros.', perk: 'Tratamiento de Cristales o Aromatizante VIP' },
+  member: { desc: 'Nivel base al registrar tu primer servicio.', perk: 'Diagnóstico exprés en cada visita y registro.' }
+};
 
 export const Clientes = () => {
   const navigate = useNavigate();
   const { clients, deleteClient: removeClient } = useStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<any>(null);
+  const [benefitsClient, setBenefitsClient] = useState<any>(null);
   const [isRanksModalOpen, setIsRanksModalOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'vip' | 'inactive' | 'new'>('all');
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest');
+
+  const [ranksConfig, setRanksConfig] = useState(() => {
+    const saved = localStorage.getItem('msa_ranks_config');
+    return saved ? JSON.parse(saved) : DEFAULT_RANKS_CONFIG;
+  });
+  const [isEditingRanks, setIsEditingRanks] = useState(false);
 
   const clientDataMap = useMemo(() => {
     const map = new Map();
@@ -28,10 +43,10 @@ export const Clientes = () => {
         const memberSince = new Date(client.created_at || client.registrationDate || new Date());
         let lastServiceDate = new Date(client.last_activity || memberSince);
         
-        let rank = { name: 'Member', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: <Award size={14} />, perk: 'Diagnóstico en cada visita' };
-        if (visits >= 10 || totalSpent >= 25000) rank = { name: 'Black Series', color: 'bg-slate-900 text-slate-100 border-slate-700', icon: <Crown size={14} className="text-yellow-500" />, perk: 'Lavado Completo & Cera VIP' };
-        else if (visits >= 5 || totalSpent >= 10000) rank = { name: 'Platinum', color: 'bg-slate-200 text-slate-800 border-slate-400', icon: <Star size={14} />, perk: 'Revisión Integral 20 pts' };
-        else if (visits >= 2) rank = { name: 'Gold', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: <Shield size={14} />, perk: 'Tratamiento Cristales o Aroma' };
+        let rank = { name: 'Member', color: 'bg-slate-100 text-slate-600 border-slate-200', icon: <Award size={14} />, perk: ranksConfig.member.perk };
+        if (visits >= 10 || totalSpent >= 25000) rank = { name: 'Black Series', color: 'bg-slate-900 text-slate-100 border-slate-700', icon: <Crown size={14} className="text-yellow-500" />, perk: ranksConfig.black.perk };
+        else if (visits >= 5 || totalSpent >= 10000) rank = { name: 'Platinum', color: 'bg-slate-200 text-slate-800 border-slate-400', icon: <Star size={14} />, perk: ranksConfig.platinum.perk };
+        else if (visits >= 2) rank = { name: 'Gold', color: 'bg-yellow-100 text-yellow-700 border-yellow-300', icon: <Shield size={14} />, perk: ranksConfig.gold.perk };
         
         const stats = { rank, memberSince, visits, totalSpent };
 
@@ -323,6 +338,13 @@ export const Clientes = () => {
                         <Edit2 size={16} />
                     </button>
                     <button 
+                        onClick={() => setBenefitsClient(client)}
+                        title="Asignar Beneficios"
+                        className="w-10 h-10 bg-white/10 hover:bg-emerald-600 text-emerald-300 hover:text-white rounded-xl flex items-center justify-center transition-all shadow-lg border border-white/5 active:scale-95 relative group/btn"
+                    >
+                        <Award size={16} />
+                    </button>
+                    <button 
                         onClick={() => setClientToDelete(client.id)}
                         title="Borrar Cliente"
                         className="w-10 h-10 bg-white/10 hover:bg-rose-600 text-rose-300 hover:text-white rounded-xl flex items-center justify-center transition-all shadow-lg hover:shadow-rose-600/30 border border-white/5 active:scale-95 relative group/btn"
@@ -348,6 +370,13 @@ export const Clientes = () => {
         client={editingClient}
       />
 
+      {/* Modal de Beneficios Segregado */}
+      <ClientBenefitsModal
+        isOpen={!!benefitsClient}
+        onClose={() => setBenefitsClient(null)}
+        client={benefitsClient}
+      />
+
       {/* Ranks Info Modal VIP */}
       {isRanksModalOpen && createPortal(
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 lg:p-8">
@@ -370,7 +399,15 @@ export const Clientes = () => {
                 <Crown className="text-yellow-500" size={32} />
                 Club MSA
               </h2>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.3em] mt-3">Programa de Lealtad Automotriz</p>
+              <div className="flex justify-between items-center mt-3">
+                <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.3em]">Programa de Lealtad Automotriz</p>
+                <button 
+                  onClick={() => setIsEditingRanks(!isEditingRanks)}
+                  className={`text-[9px] font-bold px-3 py-1 rounded-full uppercase tracking-widest border transition-all ${isEditingRanks ? 'bg-amber-500/20 text-amber-500 border-amber-500/30' : 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-700 hover:text-white'}`}
+                >
+                  {isEditingRanks ? 'Modo Edición: ON' : 'Editar Beneficios'}
+                </button>
+              </div>
             </div>
             
             <div className="p-8 grow overflow-y-auto custom-scrollbar bg-black/95">
@@ -387,10 +424,18 @@ export const Clientes = () => {
                            <h3 className="font-black text-2xl uppercase tracking-tighter text-white">Black Series</h3>
                            <span className="text-[10px] font-bold text-yellow-500 bg-yellow-500/10 px-3 py-1 mt-2 md:mt-0 rounded-full uppercase tracking-widest border border-yellow-500/20">Máximo Prestigio</span>
                         </div>
-                        <p className="text-xs font-medium text-slate-400 mb-4 tracking-wide">Para los clientes más constantes (+10 servicios) o que han confiado grandes proyectos con nosotros.</p>
+                        {isEditingRanks ? (
+                           <textarea className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-2 text-xs text-white mb-4 outline-none focus:border-yellow-500/50 resize-none h-16" value={ranksConfig.black.desc} onChange={(e) => setRanksConfig({...ranksConfig, black: {...ranksConfig.black, desc: e.target.value}})} />
+                        ) : (
+                           <p className="text-xs font-medium text-slate-400 mb-4 tracking-wide">{ranksConfig.black.desc}</p>
+                        )}
                         <div className="bg-white/5 p-3 rounded-xl border border-white/10 flex items-center gap-3 w-full backdrop-blur-md">
                            <CheckCircle2 size={18} className="text-emerald-400 shrink-0" />
-                           <span className="text-xs font-bold text-slate-200">Encerado Premium / Lavado Completo Gratis de Cortesía</span>
+                           {isEditingRanks ? (
+                              <input type="text" className="w-full bg-transparent text-xs font-bold text-slate-200 outline-none border-b border-dashed border-slate-600 focus:border-emerald-400" value={ranksConfig.black.perk} onChange={(e) => setRanksConfig({...ranksConfig, black: {...ranksConfig.black, perk: e.target.value}})} />
+                           ) : (
+                              <span className="text-xs font-bold text-slate-200">{ranksConfig.black.perk}</span>
+                           )}
                         </div>
                     </div>
                  </div>
@@ -402,10 +447,18 @@ export const Clientes = () => {
                     </div>
                     <div className="flex-1 w-full text-center md:text-left">
                         <h3 className="font-black text-xl uppercase tracking-tighter text-slate-200 mb-1">Platinum</h3>
-                        <p className="text-[11px] font-medium text-slate-400 mb-4 tracking-wide">El estándar de excelencia. A partir de 5 visitas al taller.</p>
+                        {isEditingRanks ? (
+                           <textarea className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-2 text-[11px] text-white mb-4 outline-none focus:border-slate-500 resize-none h-14" value={ranksConfig.platinum.desc} onChange={(e) => setRanksConfig({...ranksConfig, platinum: {...ranksConfig.platinum, desc: e.target.value}})} />
+                        ) : (
+                           <p className="text-[11px] font-medium text-slate-400 mb-4 tracking-wide">{ranksConfig.platinum.desc}</p>
+                        )}
                         <div className="bg-white/5 p-3 rounded-xl border border-white/5 flex items-center gap-3">
                            <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />
-                           <span className="text-xs font-bold text-slate-300">Revisión Integral de 20 Puntos + Escáner Sin Costo</span>
+                           {isEditingRanks ? (
+                              <input type="text" className="w-full bg-transparent text-xs font-bold text-slate-300 outline-none border-b border-dashed border-slate-600 focus:border-emerald-500" value={ranksConfig.platinum.perk} onChange={(e) => setRanksConfig({...ranksConfig, platinum: {...ranksConfig.platinum, perk: e.target.value}})} />
+                           ) : (
+                              <span className="text-xs font-bold text-slate-300">{ranksConfig.platinum.perk}</span>
+                           )}
                         </div>
                     </div>
                  </div>
@@ -417,10 +470,18 @@ export const Clientes = () => {
                             <Shield size={28} />
                         </div>
                         <h3 className="font-bold text-lg uppercase tracking-tight text-white mb-1">Gold</h3>
-                        <p className="text-[10px] font-medium text-slate-500 mb-4">Otorgado tras tu 2do servicio con nosotros.</p>
+                        {isEditingRanks ? (
+                            <textarea className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-2 text-[10px] text-white mb-4 outline-none focus:border-yellow-500 resize-none h-12" value={ranksConfig.gold.desc} onChange={(e) => setRanksConfig({...ranksConfig, gold: {...ranksConfig.gold, desc: e.target.value}})} />
+                        ) : (
+                            <p className="text-[10px] font-medium text-slate-500 mb-4">{ranksConfig.gold.desc}</p>
+                        )}
                         <div className="w-full bg-slate-800/50 p-3 rounded-xl flex items-start gap-2 border border-slate-700/50 mt-auto">
                            <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                           <span className="text-[10px] font-bold text-slate-300 leading-tight">Tratamiento de Cristales o Aromatizante VIP</span>
+                           {isEditingRanks ? (
+                              <input type="text" className="w-full bg-transparent text-[10px] font-bold text-slate-300 leading-tight outline-none border-b border-dashed border-slate-600 focus:border-emerald-500" value={ranksConfig.gold.perk} onChange={(e) => setRanksConfig({...ranksConfig, gold: {...ranksConfig.gold, perk: e.target.value}})} />
+                           ) : (
+                              <span className="text-[10px] font-bold text-slate-300 leading-tight">{ranksConfig.gold.perk}</span>
+                           )}
                         </div>
                     </div>
 
@@ -430,23 +491,45 @@ export const Clientes = () => {
                             <Award size={28} />
                         </div>
                         <h3 className="font-bold text-lg uppercase tracking-tight text-white mb-1">Member</h3>
-                        <p className="text-[10px] font-medium text-slate-500 mb-4">Nivel base al registrar tu primer servicio.</p>
+                        {isEditingRanks ? (
+                            <textarea className="w-full bg-slate-900/50 border border-slate-700 rounded-lg p-2 text-[10px] text-white mb-4 outline-none focus:border-slate-400 resize-none h-12" value={ranksConfig.member.desc} onChange={(e) => setRanksConfig({...ranksConfig, member: {...ranksConfig.member, desc: e.target.value}})} />
+                        ) : (
+                            <p className="text-[10px] font-medium text-slate-500 mb-4">{ranksConfig.member.desc}</p>
+                        )}
                         <div className="w-full bg-slate-800/50 p-3 rounded-xl flex items-start gap-2 border border-slate-700/50 mt-auto">
                            <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-                           <span className="text-[10px] font-bold text-slate-300 leading-tight">Diagnóstico exprés en cada visita y registro.</span>
+                           {isEditingRanks ? (
+                              <input type="text" className="w-full bg-transparent text-[10px] font-bold text-slate-300 leading-tight outline-none border-b border-dashed border-slate-600 focus:border-emerald-500" value={ranksConfig.member.perk} onChange={(e) => setRanksConfig({...ranksConfig, member: {...ranksConfig.member, perk: e.target.value}})} />
+                           ) : (
+                              <span className="text-[10px] font-bold text-slate-300 leading-tight">{ranksConfig.member.perk}</span>
+                           )}
                         </div>
                     </div>
                  </div>
               </div>
               
-              <div className="mt-8 pt-6 border-t border-slate-800/50 flex flex-col md:flex-row justify-between items-center text-slate-500 text-[10px] font-bold uppercase tracking-widest gap-4">
-                <span className="text-center md:text-left w-full max-w-[280px] leading-relaxed">Informa a tu cliente sobre sus beneficios para asegurar su regreso a MSA.</span>
-                <button 
-                  onClick={() => setIsRanksModalOpen(false)}
-                  className="bg-white text-black px-10 py-4 rounded-2xl font-black uppercase tracking-wider hover:bg-slate-200 transition-colors shadow-lg active:scale-95 w-full md:w-auto"
-                >
-                  Entendido
-                </button>
+              <div className="mt-8 pt-6 border-t border-slate-800/50 flex flex-col md:flex-row justify-between items-center pr-2 gap-4">
+                <span className="text-center md:text-left w-full max-w-[280px] text-slate-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">Informa a tu cliente sobre sus beneficios para asegurar su regreso a MSA.</span>
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                  {isEditingRanks && (
+                      <button 
+                        onClick={() => {
+                          localStorage.setItem('msa_ranks_config', JSON.stringify(ranksConfig));
+                          setIsEditingRanks(false);
+                          toast.success('Beneficios VIP actualizados para el taller', { id: 'vip-update' });
+                        }}
+                        className="bg-amber-500 text-black px-6 py-4 rounded-2xl font-black uppercase tracking-wider hover:bg-amber-400 transition-colors shadow-lg active:scale-95 flex-1 md:flex-none flex items-center justify-center gap-2"
+                      >
+                         <Save size={16} /> Completar
+                      </button>
+                  )}
+                  <button 
+                    onClick={() => setIsRanksModalOpen(false)}
+                    className="bg-white text-black px-10 py-4 rounded-2xl font-black uppercase tracking-wider hover:bg-slate-200 transition-colors shadow-lg active:scale-95 w-full md:w-auto"
+                  >
+                    Cerrar
+                  </button>
+                </div>
               </div>
             </div>
           </div>

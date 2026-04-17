@@ -9,7 +9,7 @@ export interface TicketSlice {
   
   addTicket: (data: any) => Promise<any>;
   updateTicketStatus: (id: string, status: string) => Promise<void>;
-  editTicket: (id: string, data: any) => Promise<void>;
+  editTicket: (id: string, data: any) => Promise<any>;
   deleteTicket: (id: string) => Promise<void>;
   removeTicketGlobal: (id: string) => Promise<void>;
   archiveTicketsByDate: (date: string) => Promise<void>;

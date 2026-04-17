@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   Plus, Trash2, Save, Image as ImageIcon, CheckCircle, 
   ArrowLeft, User, Phone, Mail, RefreshCw, AlertTriangle, FileText, ChevronRight, X,
-  ShoppingCart, Search
+  ShoppingCart, Search, TrendingUp
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatCurrency } from '../utils/format';
@@ -407,7 +407,8 @@ export const EditarTicket = () => {
                                  </label>
                              )}
                              <input type="file" id={`edit-file-${item.id}`} accept="image/*" className="hidden" onChange={(e) => handleImageUpload(item.id, e)} />
-                            <div className="flex-1 w-full flex flex-col gap-3 justify-center">
+                          </div>
+                          <div className="flex-1 w-full flex flex-col gap-3 justify-center">
                             {/* Fila 1: Descripción */}
                             <div className="w-full">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block px-1">
@@ -546,7 +547,7 @@ export const EditarTicket = () => {
                          <span className="font-bold text-xl text-slate-400">{formatCurrency(subtotal)}</span>
                      </div>
                      <div className="flex justify-between items-center px-2 mt-2">
-                         <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1.5"><TrendingUp size={12} strokeWidth={3} /> Ganancia Total Taller</span>
+                         <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1.5"><TrendingUp size={12} strokeWidth={3} /> Utilidades</span>
                          <span className="font-bold text-xl text-emerald-600">+{formatCurrency(items.reduce((sum, item) => sum + (((item.price || 0) - (item.purchase_price || 0)) * (item.quantity || 1)), 0))}</span>
                      </div>
                      <div className="flex justify-between items-center p-5 bg-slate-50 border border-slate-100 rounded-xl mt-4">

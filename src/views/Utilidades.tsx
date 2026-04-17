@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
   TrendingUp, Search, Calendar, Users, 
   Package, ChevronDown, ChevronUp, RefreshCw, Download,
-  Award, ShoppingBag, Wrench
+  ShoppingBag, Wrench
 } from 'lucide-react';
 import { formatCurrency } from '../utils/format';
 import { dataAdapter } from '../services/dataAdapter';
@@ -63,11 +63,6 @@ const calcTicketProfit = (items: ProfitItem[]) => {
   }, { revenue: 0, cost: 0, profit: 0 });
 };
 
-const getGradientForMargin = (margin: number) => {
-  if (margin >= 40) return 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200 text-emerald-800';
-  if (margin >= 20) return 'bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200 text-amber-800';
-  return 'bg-gradient-to-br from-red-50 to-red-100/50 border-red-200 text-red-800';
-};
 
 // ── Margin Bar Component ──
 const MarginBar = ({ margin }: { margin: number }) => {
@@ -167,25 +162,6 @@ export const Utilidades = () => {
     }, { revenue: 0, cost: 0, profit: 0, tickets: 0, items: 0 });
   }, [filtered]);
 
-  // ── Top 5 Concepts ──
-  const topConcepts = useMemo(() => {
-    const conceptMap = new Map<string, { name: string; totalProfit: number; totalRevenue: number; totalCost: number; count: number }>();
-    filtered.forEach(t => {
-      (t.items || []).forEach(item => {
-        const key = item.name.toLowerCase().trim();
-        const { revenue, cost, profit } = calcItemProfit(item);
-        const existing = conceptMap.get(key) || { name: item.name, totalProfit: 0, totalRevenue: 0, totalCost: 0, count: 0 };
-        existing.totalProfit += profit;
-        existing.totalRevenue += revenue;
-        existing.totalCost += cost;
-        existing.count++;
-        conceptMap.set(key, existing);
-      });
-    });
-    return Array.from(conceptMap.values())
-      .sort((a, b) => b.totalProfit - a.totalProfit)
-      .slice(0, 5);
-  }, [filtered]);
 
   // ── Client Breakdown ──
   const clientAnalysis = useMemo(() => {
@@ -290,7 +266,10 @@ export const Utilidades = () => {
       } catch {
         const url = URL.createObjectURL(blob);
         const a = window.document.createElement('a');
-        a.href = url; a.download = filename; a.click();
+        a.href = url; a.download = filename;
+        window.document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { window.document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
       }
       toast.success("Reporte descargado correctamente", { id: 'pdf-global' });
     } catch (e: any) {
@@ -350,10 +329,10 @@ export const Utilidades = () => {
         {isExpanded && (
           <div className="px-5 pb-4">
             <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
-              <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-slate-50 border-b border-slate-100 text-[8px] font-black uppercase tracking-widest text-slate-400">
+              <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-500">
                 <div className="col-span-4">Concepto</div>
                 <div className="col-span-1 text-center">Cant.</div>
-                <div className="col-span-2 text-right">Costo</div>
+                <div className="col-span-2 text-right">Gasto</div>
                 <div className="col-span-2 text-right">Venta</div>
                 <div className="col-span-1 text-right">Util.</div>
                 <div className="col-span-2 text-right">Margen</div>
@@ -361,26 +340,26 @@ export const Utilidades = () => {
               {(ticket.items || []).map((item, idx) => {
                 const ip = calcItemProfit(item);
                 return (
-                  <div key={idx} className="grid grid-cols-12 gap-2 px-4 py-2 border-b border-slate-50 last:border-b-0 hover:bg-slate-50/50 items-center">
-                    <div className="col-span-4 text-xs font-bold text-slate-700 truncate">{item.name}</div>
-                    <div className="col-span-1 text-xs font-bold text-slate-500 text-center">{item.quantity}</div>
-                    <div className="col-span-2 text-xs font-bold text-slate-400 text-right">{formatCurrency(ip.cost)}</div>
-                    <div className="col-span-2 text-xs font-bold text-slate-700 text-right">{formatCurrency(ip.revenue)}</div>
-                    <div className={`col-span-1 text-xs font-black text-right ${ip.profit > 0 ? 'text-emerald-600' : ip.profit < 0 ? 'text-red-500' : 'text-slate-400'}`}>
+                  <div key={idx} className="grid grid-cols-12 gap-2 px-4 py-3 border-b border-slate-100 last:border-b-0 hover:bg-slate-50/50 items-center">
+                    <div className="col-span-4 text-sm font-bold text-slate-700 truncate">{item.name}</div>
+                    <div className="col-span-1 text-sm font-bold text-slate-500 text-center">{item.quantity}</div>
+                    <div className="col-span-2 text-sm font-bold text-slate-500 text-right">{formatCurrency(ip.cost)}</div>
+                    <div className="col-span-2 text-sm font-bold text-slate-800 text-right">{formatCurrency(ip.revenue)}</div>
+                    <div className={`col-span-1 text-sm font-black text-right ${ip.profit > 0 ? 'text-emerald-600' : ip.profit < 0 ? 'text-red-500' : 'text-slate-400'}`}>
                       {ip.profit > 0 ? '+' : ''}{formatCurrency(ip.profit)}
                     </div>
                     <div className="col-span-2"><MarginBar margin={ip.margin} /></div>
                   </div>
                 );
               })}
-              <div className="grid grid-cols-12 gap-2 px-4 py-2.5 bg-emerald-50/50 border-t border-emerald-100 items-center">
-                <div className="col-span-4 text-[9px] font-black uppercase tracking-wider text-emerald-700">
+              <div className="grid grid-cols-12 gap-2 px-4 py-3 bg-emerald-50/50 border-t border-emerald-100 items-center">
+                <div className="col-span-4 text-[10px] font-black uppercase tracking-wider text-emerald-800">
                   Total {isSale ? 'Venta' : `#${ticketNum}`}
                 </div>
                 <div className="col-span-1"></div>
-                <div className="col-span-2 text-xs font-black text-slate-500 text-right">{formatCurrency(p.cost)}</div>
-                <div className="col-span-2 text-xs font-black text-slate-700 text-right">{formatCurrency(p.revenue)}</div>
-                <div className="col-span-1 text-xs font-black text-emerald-700 text-right">+{formatCurrency(p.profit)}</div>
+                <div className="col-span-2 text-sm font-black text-slate-500 text-right">{formatCurrency(p.cost)}</div>
+                <div className="col-span-2 text-sm font-black text-slate-800 text-right">{formatCurrency(p.revenue)}</div>
+                <div className="col-span-1 text-sm font-black text-emerald-600 text-right">+{formatCurrency(p.profit)}</div>
                 <div className="col-span-2"><MarginBar margin={margin} /></div>
               </div>
             </div>
@@ -459,7 +438,7 @@ export const Utilidades = () => {
           <p className="text-lg font-black text-slate-900">{formatCurrency(totals.revenue)}</p>
         </div>
         <div className={`${totals.cost === 0 ? 'bg-slate-50' : 'bg-rose-50/50 border-rose-100'} p-4 rounded-xl border shadow-sm`}>
-          <p className={`text-[8px] font-bold uppercase tracking-widest mb-1 ${totals.cost === 0 ? 'text-slate-400' : 'text-rose-500'}`}>Costo Operativo</p>
+          <p className={`text-[8px] font-bold uppercase tracking-widest mb-1 ${totals.cost === 0 ? 'text-slate-400' : 'text-rose-500'}`}>Gasto Operativo</p>
           <p className={`text-lg font-black ${totals.cost === 0 ? 'text-slate-500' : 'text-rose-700'}`}>{formatCurrency(totals.cost)}</p>
         </div>
         <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 shadow-sm">
@@ -476,8 +455,8 @@ export const Utilidades = () => {
         </div>
       </div>
 
-      {/* ═══ Top 5 Concepts ═══ */}
-      {topConcepts.length > 0 && (
+      {/* ═══ Top 5 Concepts (Oculto de momento) ═══ */}
+      {/* topConcepts.length > 0 && (
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
           <h3 className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
             <Award size={12} className="text-amber-500" /> Top 5 Conceptos Más Rentables
@@ -501,7 +480,7 @@ export const Utilidades = () => {
             })}
           </div>
         </div>
-      )}
+      ) */}
 
       {/* ═══ Filters ═══ */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col md:flex-row gap-3 items-center">
@@ -569,7 +548,7 @@ export const Utilidades = () => {
                         <p className="text-base font-black text-slate-700">{formatCurrency(day.revenue)}</p>
                       </div>
                       <div className="text-right hidden md:block">
-                        <p className={`text-[8px] font-bold uppercase tracking-widest ${day.cost === 0 ? 'text-slate-400' : 'text-rose-500'}`}>Costo</p>
+                        <p className={`text-[8px] font-bold uppercase tracking-widest ${day.cost === 0 ? 'text-slate-400' : 'text-rose-500'}`}>Gasto</p>
                         <p className={`text-base font-black ${day.cost === 0 ? 'text-slate-500' : 'text-rose-600'}`}>{formatCurrency(day.cost)}</p>
                       </div>
                       <div className="text-right">
@@ -642,7 +621,7 @@ export const Utilidades = () => {
                         <p className="text-base font-black text-slate-700">{formatCurrency(client.totalRevenue)}</p>
                       </div>
                       <div className="text-right hidden md:block">
-                        <p className={`text-[9px] font-bold uppercase tracking-widest ${client.totalCost === 0 ? 'text-slate-400' : 'text-rose-500'}`}>Costo</p>
+                        <p className={`text-[9px] font-bold uppercase tracking-widest ${client.totalCost === 0 ? 'text-slate-400' : 'text-rose-500'}`}>Gasto</p>
                         <p className={`text-base font-black ${client.totalCost === 0 ? 'text-slate-500' : 'text-rose-600'}`}>{formatCurrency(client.totalCost)}</p>
                       </div>
                       <div className="text-right">
@@ -686,7 +665,7 @@ export const Utilidades = () => {
               <p className="text-sm font-black text-slate-300">{formatCurrency(totals.revenue)}</p>
             </div>
             <div className="text-center">
-              <p className="text-[7px] font-bold uppercase tracking-widest text-slate-500">Costo</p>
+              <p className="text-[7px] font-bold uppercase tracking-widest text-slate-500">Gasto</p>
               <p className="text-sm font-black text-slate-400">{formatCurrency(totals.cost)}</p>
             </div>
             <div className="text-center">

@@ -1,7 +1,7 @@
 /**
  * Abre un enlace de WhatsApp con un mensaje preestablecido.
  */
-export const sendWhatsAppNotification = (phone: string, message: string) => {
+export const sendWhatsAppNotification = async (phone: string, message: string) => {
   // Limpiar el teléfono para que solo tenga números
   const cleanPhone = phone.replace(/\D/g, '');
   
@@ -11,7 +11,13 @@ export const sendWhatsAppNotification = (phone: string, message: string) => {
   const encodedMessage = encodeURIComponent(message);
   const url = `https://wa.me/${finalPhone}?text=${encodedMessage}`;
   
-  window.open(url, '_blank');
+  try {
+    const { open } = await import('@tauri-apps/plugin-shell');
+    await open(url);
+  } catch (error) {
+    // Fallback a web
+    window.open(url, '_blank');
+  }
 };
 
 /**

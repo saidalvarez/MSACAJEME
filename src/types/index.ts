@@ -7,6 +7,8 @@ export interface TicketItem {
   price: number;
   quantity: number;
   image?: string;
+  purchase_price?: number;
+  inventory_id?: string;
 }
 
 export interface Ticket {
@@ -45,6 +47,7 @@ export interface Client {
   email?: string;
   address?: string;
   notes?: string;
+  benefits?: string;
   registrationDate?: string;
   created_at: string;
   _isOffline?: boolean;
@@ -74,6 +77,8 @@ export interface InventoryItem {
   purchase_price?: number;
   market_price?: number;
   purchase_number?: string;
+  reservedStock?: number;
+  reserved_stock?: number;
 }
 
 export interface SaleItem {

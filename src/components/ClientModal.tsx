@@ -17,8 +17,7 @@ export const ClientModal = ({ isOpen, onClose, client }: ClientModalProps) => {
     name: '',
     phone: '',
     email: '',
-    notes: '',
-    benefits: ''
+    notes: ''
   });
 
   useEffect(() => {
@@ -27,11 +26,10 @@ export const ClientModal = ({ isOpen, onClose, client }: ClientModalProps) => {
         name: client.name || '',
         phone: client.phone || '',
         email: client.email || '',
-        notes: client.notes || '',
-        benefits: client.benefits || ''
+        notes: client.notes || ''
       });
     } else {
-      setFormData({ name: '', phone: '', email: '', notes: '', benefits: '' });
+      setFormData({ name: '', phone: '', email: '', notes: '' });
     }
   }, [client, isOpen]);
 
@@ -138,24 +136,10 @@ export const ClientModal = ({ isOpen, onClose, client }: ClientModalProps) => {
                    <FileText size={16} />
                 </div>
                 <textarea
-                  className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-10 pr-4 text-sm font-medium text-slate-800 focus:ring-4 focus:ring-slate-100 focus:border-slate-400 outline-none transition-all min-h-[80px] resize-none placeholder:text-slate-300 shadow-sm leading-relaxed"
+                  className="w-full bg-white border border-slate-200 rounded-xl py-3.5 pl-10 pr-4 text-sm font-medium text-slate-800 focus:ring-4 focus:ring-slate-100 focus:border-slate-400 outline-none transition-all min-h-[100px] resize-none placeholder:text-slate-300 shadow-sm leading-relaxed"
                   placeholder="Escribe detalles importantes, placas de autos frecuentes..."
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5 focus-within:text-slate-900 transition-colors group">
-              <label className="text-xs font-bold text-emerald-600 group-focus-within:text-emerald-700 transition-colors flex items-center gap-1.5">
-                 <span className="w-4 h-4 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center shrink-0">✦</span> Beneficios Asignados
-              </label>
-              <div className="relative">
-                <textarea
-                  className="w-full bg-white border border-slate-200 border-l-2 border-l-emerald-500 rounded-xl py-3.5 px-4 text-sm font-medium text-slate-800 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-400 outline-none transition-all min-h-[80px] resize-none placeholder:text-slate-300 shadow-sm leading-relaxed"
-                  placeholder="Ej. Revisión Exprés, Lavado VIP, Descuento 10%..."
-                  value={formData.benefits}
-                  onChange={(e) => setFormData({ ...formData, benefits: e.target.value })}
                 />
               </div>
             </div>
